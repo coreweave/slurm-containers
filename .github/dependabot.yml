@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+
+version: 2
+updates:
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      # group all minor/patch updates in one PR
+      version-updates:
+        dependency-type: production
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+  # Check Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "fix"
+    labels:
+      - "docker"
+      - "dependencies"
+      - "security"
