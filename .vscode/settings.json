@@ -1,0 +1,17 @@
+{
+  "editor.detectIndentation": false,
+  "editor.rulers": [
+    100
+  ],
+  "editor.formatOnSave": true, // Mainly to force yaml format
+  "markdownlint.run": "onSave",
+  // Settings to mirror .editorconfig
+  "editor.trimAutoWhitespace": true,
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "[makefile]": {
+    "editor.insertSpaces": false
+  },
+}

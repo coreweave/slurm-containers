@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+
+name: Push Orchestrator
+on:
+  push:
+    branches-ignore:
+      - develop
+      - main
+    tags-ignore:
+      - "*"
+
+permissions:
+  contents: read
+  packages: read # Required for pulling the cw actions images
+  actions: read
+  security-events: write
+
+jobs:
+  commitlint:
+    uses: ./.github/workflows/commitlint.yaml
+
+  pre-commit:
+    uses: ./.github/workflows/pre-commit.yaml
+
+  codeql:
+    uses: ./.github/workflows/codeql.yaml
+
+  alls-green:
+    if: always()
+    needs:
+      - commitlint
+      - pre-commit
+      - codeql
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    steps:
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: "3.13"
+      - name: Decide whether the needed jobs passed or failed.
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
+        with:
+          jobs: ${{ toJSON(needs) }}
+          allowed-skips: commitlint
