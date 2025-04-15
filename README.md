@@ -4,7 +4,7 @@ This repository contains files for building the SUNK Slurm container image, whic
 
 ## Overview
 
-The Slurm container image is built as a multi-stage build that creates a fully functional Slurm installation along with supporting tools needed for integrating Slurm with Kubernetes. The image includes:
+The Slurm container image builds in multiple stages, and creates a fully functional Slurm installation along with supporting tools needed for integrating Slurm with Kubernetes. The image includes:
 
 - Slurm workload manager (from source, with custom patches)
 - NVIDIA Pyxis plugin for container execution inside Slurm jobs
