@@ -1,0 +1,132 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+#
+# CoreWeave SUNK Software
+#
+# Copyright 2025 CoreWeave, Inc.
+#
+# See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
+
+name: "Build SUNK Images"
+description: "Composite workflow that builds SUNK images"
+inputs:
+  context:
+    description: "A directory containing a Dockerfile which buildx will use to build your image."
+    required: true
+    default: ""
+  image-target:
+    description: "The target image name."
+    required: true
+    default: ""
+  image-tag-suffix:
+    description: "Suffix to append to the image tag."
+    required: false
+    default: ""
+  dockerfile:
+    description: "Filepath resolving to the Dockerfile to use."
+    required: true
+    default: ""
+  doppler-token:
+    description: "The Doppler token to fetch the BuildKit client certs (e.g. secrets.ORG_BUILDKIT_CLIENT_TOKEN)."
+    required: true
+    default: ""
+  registry-password:
+    description: "The password to authenticate to the container registry, stored as a repository secret."
+    required: true
+    default: ""
+  buildx-args:
+    description: "Extra arguments to pass to the `buildx build` command."
+    required: false
+    default: ""
+
+outputs:
+  image_name_with_tag:
+    description: "The full image name."
+    value: ${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}
+  image_name:
+    description: "The image name not including the tag."
+    value: ${{ steps.assemble-image-name.outputs.image_name }}
+  image_tag:
+    description: "The computed image tag."
+    value: ${{ steps.determine-tag.outputs.tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate environment
+      shell: bash
+      env:
+        CI_REGISTRY: ${{ env.CI_REGISTRY }}
+        CI_CACHE_IMAGE: ${{ env.CI_CACHE_IMAGE }}
+        CI_REGISTRY_USER: ${{ env.CI_REGISTRY_USER }}
+      run: |
+        if [ -z "$CI_REGISTRY" ] || [ -z "$CI_CACHE_IMAGE" ] || [ -z "$CI_REGISTRY_USER" ]; then
+          echo "registry env variables not set. Check CI_REGISTRY, CI_CACHE_IMAGE, CI_REGISTRY_USER."
+          exit 1
+        fi
+
+    - name: Determine image tag
+      id: determine-tag
+      uses: ./.github/actions/images/determine-tag
+      with:
+        tag-suffix: ${{ inputs.image-tag-suffix }}
+
+    - name: Assemble image name
+      id: assemble-image-name
+      shell: bash
+      run: |
+        echo "image_name=${{ env.CI_REGISTRY }}/${{ inputs.image-target }}" >> $GITHUB_OUTPUT
+
+    - name: Compute hash of image name
+      id: compute-image-name-hash
+      shell: bash
+      run: |
+        echo "hash=$(echo -n ${{ steps.assemble-image-name.outputs.image_name }} | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+    - name: Debug
+      if: runner.debug == '1'
+      shell: bash
+      run: |
+        echo "::group::Build Image inputs"
+          echo "context=${{ inputs.context }}"
+          echo "dockerfile=${{ inputs.dockerfile }}"
+          echo "image-target=${{ inputs.image-target }}"
+          echo "image-tag-suffix=${{ inputs.image-tag-suffix }}"
+          echo "buildx-args=${{ inputs.buildx-args }}"
+          echo "registry=${{ env.CI_REGISTRY }}"
+          echo "username=${{ env.CI_REGISTRY_USER }}"
+          echo "cache_image=${{ env.CI_CACHE_IMAGE }}"
+        echo "::endgroup::"
+
+        echo "::group::Step outputs"
+          echo "tag=${{ steps.determine-tag.outputs.tag }}"
+          echo "image_name=${{ steps.assemble-image-name.outputs.image_name }}"
+          echo "hash=${{ steps.compute-image-name-hash.outputs.hash }}"
+        echo "::endgroup::"
+
+    - name: Build image
+      id: build-image
+      uses: coreweave/actions/build/buildx-build@buildx-build-action-v1.1.0
+      with:
+        context: ${{ inputs.context }}
+        tags: ${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}
+        dockerfile: ${{ inputs.dockerfile }}
+        endpoint: tcp://buildkitd-amd64.git-devprod:1234
+        append: |
+          - endpoint: tcp://buildkitd-arm64.git-devprod:1234
+        doppler-token: ${{ inputs.doppler-token }}
+        doppler-config: prod
+        doppler-project: devprod-buildkit-consumer
+        registry: ${{ env.CI_REGISTRY }}
+        username: ${{ env.CI_REGISTRY_USER }}
+        password: ${{ inputs.registry-password }}
+        # Using suggested cache compression options from https://github.com/moby/buildkit#registry-push-image-and-cache-separately
+        buildx-args: |
+          --platform=linux/amd64,linux/arm64
+          --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+          --cache-to=type=registry,mode=max,compression=zstd,compression-level=1,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+          ${{ inputs.buildx-args }}
+
+    - name: Output image name
+      id: output-image-name
+      shell: bash
+      run: echo "::notice::${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}"

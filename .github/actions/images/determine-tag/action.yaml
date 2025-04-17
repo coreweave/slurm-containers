@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+#
+# CoreWeave SUNK Software
+#
+# Copyright 2025 CoreWeave, Inc.
+#
+# See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
+
+name: "Determine Tag"
+description: "Determine the tag for SUNK images based on the commit SHA and any provided tag suffix."
+inputs:
+  tag-suffix:
+    description: "Suffix to append to the tag."
+    required: false
+    default: ""
+
+outputs:
+  tag:
+    description: "The computed image tag."
+    value: ${{ steps.determine-tag.outputs.tag }}
+
+runs:
+  using: "composite"
+  steps:
+    # Github actions does not provide a short sha so we need to compute it
+    - name: Determine Tag or SHA
+      id: determine-tag
+      shell: bash
+      env:
+        LAST_COMMIT_SHA: ${{ github.sha }}
+      run: |
+        _tag=${LAST_COMMIT_SHA:0:8}
+
+        # Append suffix if provided
+        if [ -n "${{ inputs.tag-suffix }}" ]; then
+          _tag="${_tag}-${{ inputs.tag-suffix }}";
+        fi
+
+        echo "::debug::tag: ${_tag}"
+        echo "::debug::tag-suffix: ${{ inputs.tag-suffix}}"
+
+        echo "tag=${_tag}" >> $GITHUB_OUTPUT

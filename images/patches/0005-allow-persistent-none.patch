@@ -1,0 +1,13 @@
+diff --git a/src/slurmctld/proc_req.c b/src/slurmctld/proc_req.c
+index 545b179dc1..c3f6b5a476 100644
+--- a/src/slurmctld/proc_req.c
++++ b/src/slurmctld/proc_req.c
+@@ -5941,7 +5941,7 @@ static void _slurm_rpc_persist_init(slurm_msg_t *msg)
+
+ 	if (persist_init->persist_type == PERSIST_TYPE_FED)
+ 		rc = fed_mgr_add_sibling_conn(persist_conn, &comment);
+-	else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE) {
++	else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE || persist_init->persist_type == PERSIST_TYPE_NONE) {
+ 		persist_conn->flags |= PERSIST_FLAG_ALREADY_INITED;
+ 		slurm_persist_conn_recv_thread_init(
+ 			persist_conn, -1, persist_conn);

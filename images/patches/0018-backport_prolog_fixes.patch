@@ -1,0 +1,50 @@
+diff --git a/src/common/run_command.c b/src/common/run_command.c
+index 027c4a00e2..f5aa3aee81 100644
+--- a/src/common/run_command.c
++++ b/src/common/run_command.c
+@@ -246,7 +246,7 @@ static void _run_command_child(run_command_args_t *args, int write_fd,
+ 	dup2(write_fd, STDERR_FILENO);
+ 	dup2(write_fd, STDOUT_FILENO);
+
+-	if (launcher_argv)
++	if (launcher_argv && !args->direct_exec)
+ 		_run_command_child_exec(script_launcher_fd, script_launcher,
+ 					launcher_argv, args->env);
+
+@@ -408,7 +408,7 @@ extern char *run_command(run_command_args_t *args)
+ 	child_proc_count++;
+ 	slurm_mutex_unlock(&proc_count_mutex);
+
+-	if (script_launcher)
++	if (script_launcher && !args->direct_exec)
+ 		launcher_argv = _setup_launcher_argv(args);
+
+ 	if ((cpid = fork()) == 0) {
+diff --git a/src/common/run_command.h b/src/common/run_command.h
+index 59e2e27439..f7bf5bf720 100644
+--- a/src/common/run_command.h
++++ b/src/common/run_command.h
+@@ -46,6 +46,11 @@ typedef struct {
+ 	void *cb_arg;
+ 	char **env;
+ 	bool ignore_path_exec_check;
++	/*
++	 * if True, always execute script directly instead of using script
++	 * launcher even if available
++	 */
++	bool direct_exec;
+ 	uint32_t job_id;
+ 	int max_wait;
+ 	bool orphan_on_shutdown;
+diff --git a/src/slurmd/slurmstepd/task.c b/src/slurmd/slurmstepd/task.c
+index 902d2eb126..a0030966d7 100644
+--- a/src/slurmd/slurmstepd/task.c
++++ b/src/slurmd/slurmstepd/task.c
+@@ -192,6 +192,7 @@ _run_script_and_set_env(const char *name, const char *path,
+ 		.max_wait = -1,
+ 		.script_path = path,
+ 		.script_type = name,
++		.direct_exec = true,
+ 		.status = &status
+ 	};
+

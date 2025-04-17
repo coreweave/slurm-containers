@@ -1,0 +1,29 @@
+umask u=rwx,g=rwx,o=
+ulimit -n 16384
+
+source /etc/profile.d/bash_completion.sh
+source /etc/profile.d/slurm_completion.sh
+
+alias dl='sinfo -t "drain&idle" -NO "NodeList:45,Comment:10,Timestamp:25,Reason:130" | uniq'
+alias dld='sinfo -t drain -NO "NodeList:45,Comment:10,Timestamp:25,Reason:130" | uniq'
+alias downl='sinfo -t "down" -NO "NodeList:45,Comment:10,Timestamp:25,Reason:130" | uniq'
+alias sn='scontrol show node'
+alias reboot='/usr/share/sunk/bin/reboot.sh'
+
+function undrain() {
+  if [ "$#" -ne 1 ]
+  then
+          echo "Usage: undrain <node>"
+          return 1
+  fi
+  scontrol update nodename=$1 state=resume
+}
+
+function drain() {
+  if [ "$#" -ne 2 ]
+  then
+          echo "Usage: drain <node> <reason>"
+          return 1
+  fi
+  scontrol update nodename=$1 state=drain reason="$(whoami): $2"
+}

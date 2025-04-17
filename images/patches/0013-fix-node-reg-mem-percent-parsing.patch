@@ -1,0 +1,91 @@
+diff --git a/src/common/parse_value.h b/src/common/parse_value.h
+index d6ee866de8..73516dcddc 100644
+--- a/src/common/parse_value.h
++++ b/src/common/parse_value.h
+@@ -41,14 +41,17 @@
+
+ #include <stdint.h>
+
+-int s_p_handle_long(long* data, const char* key, const char* value);
+-int s_p_handle_uint16(uint16_t* data, const char* key, const char *value);
+-int s_p_handle_uint32(uint32_t* data, const char* key, const char* value);
+-int s_p_handle_uint64(uint64_t* data, const char* key, const char* value);
+-int s_p_handle_boolean(bool* data, const char* key, const char* value);
+-int s_p_handle_float(float* data, const char* key, const char* value);
+-int s_p_handle_double(double* data, const char* key, const char* value);
+-int s_p_handle_long_double(long double* data, const char* key,
+-			   const char* value);
++extern int s_p_handle_long(long* data, const char* key, const char* value);
++extern int s_p_handle_uint16(uint16_t* data, const char* key,
++			     const char *value);
++extern int s_p_handle_uint32(uint32_t* data, const char* key,
++			     const char* value);
++extern int s_p_handle_uint64(uint64_t* data, const char* key,
++			     const char* value);
++extern int s_p_handle_boolean(bool* data, const char* key, const char* value);
++extern int s_p_handle_float(float* data, const char* key, const char* value);
++extern int s_p_handle_double(double* data, const char* key, const char* value);
++extern int s_p_handle_long_double(long double* data, const char* key,
++				  const char* value);
+
+ #endif /* !_PARSE_VALUE_H */
+diff --git a/src/sacctmgr/common.c b/src/sacctmgr/common.c
+index ee27ff2f5e..9f6554ec02 100644
+--- a/src/sacctmgr/common.c
++++ b/src/sacctmgr/common.c
+@@ -40,6 +40,7 @@
+
+ #include "src/sacctmgr/sacctmgr.h"
+ #include "src/common/macros.h"
++#include "src/common/parse_value.h"
+ #include "src/common/slurmdbd_defs.h"
+ #include "src/interfaces/auth.h"
+ #include "src/common/slurm_protocol_defs.h"
+@@ -1534,16 +1535,15 @@ extern int get_uint64(char *in_value, uint64_t *out_value, char *type)
+
+ extern int get_double(char *in_value, double *out_value, char *type)
+ {
+-	char *ptr = NULL, *meat = NULL;
++	char *meat = NULL;
+ 	double num;
+
+ 	if (!(meat = strip_quotes(in_value, NULL, 1))) {
+ 		error("Problem with strip_quotes");
+ 		return SLURM_ERROR;
+ 	}
+-	num = strtod(meat, &ptr);
+-	if ((num == 0) && ptr && ptr[0]) {
+-		error("Invalid value for %s (%s)", type, meat);
++
++	if (s_p_handle_double(&num, type, meat)) {
+ 		xfree(meat);
+ 		return SLURM_ERROR;
+ 	}
+diff --git a/src/slurmctld/node_mgr.c b/src/slurmctld/node_mgr.c
+index d59343a041..286f613ca3 100644
+--- a/src/slurmctld/node_mgr.c
++++ b/src/slurmctld/node_mgr.c
+@@ -59,6 +59,7 @@
+ #include "src/common/macros.h"
+ #include "src/common/pack.h"
+ #include "src/common/parse_time.h"
++#include "src/common/parse_value.h"
+ #include "src/common/read_config.h"
+ #include "src/common/slurm_resource_info.h"
+ #include "src/common/state_save.h"
+@@ -3101,12 +3102,10 @@ extern int validate_node_specs(slurm_msg_t *slurm_msg, bool *newly_up)
+ 		char *tmp_ptr;
+ 		if ((tmp_ptr = xstrcasestr(slurm_conf.slurmctld_params,
+ 					   "node_reg_mem_percent="))) {
+-			conf_node_reg_mem_percent = strtod(tmp_ptr + 21, NULL);
+-			if (errno) {
++			if (s_p_handle_double(&conf_node_reg_mem_percent,
++					      "node_reg_mem_percent",
++					      tmp_ptr + 21))
+ 				conf_node_reg_mem_percent = -1;
+-				error("%s: Unable to convert %s value to double",
+-				      __func__, tmp_ptr);
+-			}
+ 			sched_update = slurm_conf.last_update;
+ 		}
+ 	}
