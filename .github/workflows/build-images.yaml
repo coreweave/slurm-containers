@@ -1,0 +1,118 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+#
+# CoreWeave SUNK Software
+#
+# Copyright 2025 CoreWeave, Inc.
+#
+# See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
+
+name: Build Images
+on:
+  workflow_call:
+    secrets:
+      CI_APP_ID:
+        required: true
+      CI_APP_PRIVATE_KEY:
+        required: true
+      GL_SUNK_REGISTRY_TOKEN:
+        required: true
+      ORG_BUILDKIT_CLIENT_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+  packages: read # Required for pulling the cw actions images
+
+env:
+  ## Registry vars
+  CI_REGISTRY: registry.gitlab.com
+  CI_CACHE_IMAGE: registry.gitlab.com/coreweave/sunk/cache
+  # needs to be non-empty, value does not matter for auth
+  CI_REGISTRY_USER: gitlab
+
+  build-settings: |
+    - os: ubuntu22.04
+      controller_parent_image: ubuntu:jammy-20240911.1
+      cuda:
+        - name: cu122
+          image: ghcr.io/coreweave/nccl-tests:12.2.2-devel-ubuntu22.04-nccl2.23.4-1-3ef8839
+        - name: cu124
+          image: ghcr.io/coreweave/nccl-tests:12.4.1-devel-ubuntu22.04-nccl2.23.4-1-3ef8839
+        - name: cu128
+          image: ghcr.io/coreweave/nccl-tests:12.8.0-devel-ubuntu22.04-nccl2.25.1-1-57fa979
+      slurm_pmix_version: pmix2
+      libjson_version: 5
+
+jobs:
+  parse-build-settings:
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    outputs:
+      controller_matrix: ${{ steps.parse-build-settings.outputs.controller_matrix }}
+      slurmd_cw_matrix: ${{ steps.parse-build-settings.outputs.slurmd_cw_matrix }}
+    steps:
+      - name: Parse build settings
+        id: parse-build-settings
+        shell: bash
+        run: |
+          _build_settings_json=$(echo "${{ env.build-settings }}" | yq -o=json eval . -)
+          _controller_matrix=$(echo "${_build_settings_json}" | jq -c '[.[] | {os, parent_image: .controller_parent_image, slurm_pmix_version, libjson_version}]')
+          _slurmd_cw_matrix=$(echo "${_build_settings_json}" | jq -c '[.[] as $r | $r.cuda[] | {os: $r.os, cuda_name: .name, parent_image: .image, slurm_pmix_version: $r.slurm_pmix_version, libjson_version: $r.libjson_version}]')
+
+          echo "controller_matrix=${_controller_matrix}" >> "$GITHUB_OUTPUT"
+          echo "slurmd_cw_matrix=${_slurmd_cw_matrix}" >> "$GITHUB_OUTPUT"
+
+  build-controller-based-images:
+    needs: parse-build-settings
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    strategy:
+      matrix:
+        build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.controller_matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build controller base and extras images
+        id: build-controller
+        uses: ./.github/actions/images/build-with-extras
+        with:
+          context: ./images
+          dockerfile: ./images/Dockerfile
+          image-target: coreweave/sunk/controller
+          image-tag-suffix: ${{ matrix.build-settings.os }}
+          registry-password: ${{ secrets.GL_SUNK_REGISTRY_TOKEN }}
+          doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
+          buildx-args-base: |
+            --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
+            --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
+            --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
+            --target controller
+            --sbom=true
+            --provenance=true
+
+  build-slurmd-cw-images:
+    needs: parse-build-settings
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    strategy:
+      matrix:
+        build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.slurmd_cw_matrix) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build slurmd-cw-${{ matrix.build-settings.cuda_name }} base and extras image
+        uses: ./.github/actions/images/build-with-extras
+        with:
+          context: ./images
+          dockerfile: ./images/Dockerfile
+          image-target: coreweave/sunk/slurmd-cw-${{ matrix.build-settings.cuda_name }}
+          image-tag-suffix: ${{ matrix.build-settings.os }}
+          registry-password: ${{ secrets.GL_SUNK_REGISTRY_TOKEN }}
+          doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
+          buildx-args-base: |
+            --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
+            --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
+            --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
+            --target controller
+            --sbom=true
+            --provenance=true

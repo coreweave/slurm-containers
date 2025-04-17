@@ -1,0 +1,117 @@
+diff --git a/slurm/slurm.h b/slurm/slurm.h
+index 27d133c5a2..a537f87b71 100644
+--- a/slurm/slurm.h
++++ b/slurm/slurm.h
+@@ -3196,6 +3196,7 @@ typedef struct {
+ 	uint16_t vsize_factor;	/* virtual memory limit size factor */
+ 	uint16_t wait_time;	/* default job --wait time */
+ 	char *x11_params;	/* X11Parameters */
++	char *job_skip_ids;	/* list of job ids to skip */
+ } slurm_conf_t;
+
+ typedef struct slurmd_status_msg {
+diff --git a/src/api/config_info.c b/src/api/config_info.c
+index 206c015d6b..43b9612250 100644
+--- a/src/api/config_info.c
++++ b/src/api/config_info.c
+@@ -1230,6 +1230,8 @@ extern void *slurm_ctl_conf_2_key_pairs(slurm_conf_t *conf)
+
+ 	add_key_pair(ret_list, "X11Parameters", "%s", conf->x11_params);
+
++	add_key_pair(ret_list, "SlurmJobSkipIds", "%s", conf->job_skip_ids);
++
+ 	return ret_list;
+ }
+
+diff --git a/src/common/read_config.c b/src/common/read_config.c
+index bbc7a1e3bb..8e1c2c52bf 100644
+--- a/src/common/read_config.c
++++ b/src/common/read_config.c
+@@ -446,6 +446,7 @@ s_p_options_t slurm_conf_options[] = {
+ 	{"VSizeFactor", S_P_UINT16},
+ 	{"WaitTime", S_P_UINT16},
+ 	{"X11Parameters", S_P_STRING},
++	{"SlurmJobSkipIds", S_P_STRING},
+
+ 	{"DownNodes", S_P_ARRAY, _parse_downnodes, _destroy_downnodes},
+ 	{"FrontendName", S_P_ARRAY, _parse_frontend, destroy_frontend},
+@@ -3033,6 +3034,7 @@ extern void free_slurm_conf(slurm_conf_t *ctl_conf_ptr, bool purge_node_hash)
+ 	xfree (ctl_conf_ptr->unkillable_program);
+ 	xfree (ctl_conf_ptr->version);
+ 	xfree (ctl_conf_ptr->x11_params);
++	xfree (ctl_conf_ptr->job_skip_ids);
+
+ 	if (purge_node_hash)
+ 		_free_name_hashtbl();
+@@ -3230,6 +3232,7 @@ void init_slurm_conf(slurm_conf_t *ctl_conf_ptr)
+ 	ctl_conf_ptr->wait_time			= NO_VAL16;
+ 	xfree (ctl_conf_ptr->x11_params);
+ 	ctl_conf_ptr->prolog_epilog_timeout = NO_VAL16;
++	xfree(ctl_conf_ptr->job_skip_ids);
+
+ 	_free_name_hashtbl();
+
+@@ -4095,6 +4098,8 @@ static int _validate_and_set_defaults(slurm_conf_t *conf,
+
+ 	(void) s_p_get_string(&conf->authinfo, "AuthInfo", hashtbl);
+
++	(void) s_p_get_string(&conf->job_skip_ids, "SlurmJobSkipIds", hashtbl);
++
+ 	if (!s_p_get_string(&conf->authtype, "AuthType", hashtbl))
+ 		conf->authtype = xstrdup(DEFAULT_AUTH_TYPE);
+
+diff --git a/src/slurmctld/job_mgr.c b/src/slurmctld/job_mgr.c
+index 43859e63c6..0c5e6bd888 100644
+--- a/src/slurmctld/job_mgr.c
++++ b/src/slurmctld/job_mgr.c
+@@ -1395,6 +1395,30 @@ extern int job_mgr_dump_job_state(void *object, void *arg)
+ 	return 0;
+ }
+
++// Function to check if a skip_id exists in env provided by user
++int contains_skip_id(char* job_skip_ids, int job_id) {
++	// check if variable is null
++	if (job_skip_ids == NULL || (*job_skip_ids == '\0')) {
++		return 0;
++	}
++
++	char* dup = xstrdup(job_skip_ids); //duplicate
++	// Tokenize the string using a comma as delimiter
++	char* token = strtok(dup, ",");
++	// Loop through all the tokens
++	while (token != NULL) {
++		int num_val = atoi(token);  // Convert token to integer
++		// Compare the current number with the job_id
++		if (num_val == job_id) {
++			xfree(dup);
++			return 1;  // Found job_id
++		}
++		token = strtok(NULL, ",");  // Get next token
++	}
++	xfree(dup);
++	return 0;  // job_id not found
++}
++
+ extern int job_mgr_load_job_state(buf_t *buffer,
+ 				  uint16_t protocol_version)
+ {
+@@ -1417,6 +1441,19 @@ extern int job_mgr_load_job_state(buf_t *buffer,
+ 		goto unpack_error;
+ 	}
+
++	// get SlurmJobSkipIds from slurm.conf
++	char* job_skip_ids = slurm_conf.job_skip_ids;
++	// check if  the current job id matches the job skip ids
++	if (contains_skip_id(job_skip_ids, job_ptr->job_id)) {
++		// set the return code to success, delete the job record,
++		verbose("deleting job id: %d", job_ptr->job_id);
++		// goto the end of the function
++		rc = SLURM_SUCCESS;
++		job_record_delete(job_ptr);
++		job_ptr = NULL;
++		goto free_it;
++	}
++
+ 	if (find_job_record(job_ptr->job_id)) {
+ 		error("duplicate job state record found for %pJ", job_ptr);
+ 		goto unpack_error;

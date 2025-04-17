@@ -1,0 +1,7 @@
+Nothing:
+
+all: Nothing
+
+install: Nothing
+
+.SILENT:

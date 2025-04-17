@@ -1,0 +1,13 @@
+diff --git a/src/slurmctld/slurmctld.h b/src/slurmctld/slurmctld.h
+index a9ce24bbf7..b03c485109 100644
+--- a/src/slurmctld/slurmctld.h
++++ b/src/slurmctld/slurmctld.h
+@@ -76,7 +76,7 @@
+  * Since some systems schedule pthread on a First-In-Last-Out basis,
+  * increasing this value is strongly discouraged. */
+ #ifndef MAX_SERVER_THREADS
+-#define MAX_SERVER_THREADS 256
++#define MAX_SERVER_THREADS 3072
+ #endif
+
+ /* Maximum number of threads to service emails (see MailProg) */
