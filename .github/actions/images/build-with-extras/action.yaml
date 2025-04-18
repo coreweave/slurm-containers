@@ -29,8 +29,16 @@ inputs:
     description: "The Doppler token to fetch the BuildKit client certs (e.g. secrets.ORG_BUILDKIT_CLIENT_TOKEN)."
     required: true
     default: ""
-  registry-password:
-    description: "The password to authenticate to the container registry, stored as a repository secret."
+  cloudsmith-repo-name:
+    description: "The name of the Cloudsmith repository to use."
+    required: true
+    default: ""
+  cloudsmith-service:
+    description: "The name of the Cloudsmith service account to use."
+    required: true
+    default: ""
+  github-token:
+    description: "The GitHub token to use for authentication."
     required: true
     default: ""
   buildx-args-common:
@@ -78,7 +86,9 @@ runs:
         image-tag-suffix: ${{ inputs.image-tag-suffix }}
         dockerfile: ${{ inputs.dockerfile }}
         doppler-token: ${{ inputs.doppler-token }}
-        registry-password: ${{ inputs.registry-password }}
+        cloudsmith-repo-name: ${{ inputs.cloudsmith-repo-name }}
+        cloudsmith-service: ${{ inputs.cloudsmith-service }}
+        github-token: ${{ inputs.github-token }}
         buildx-args: |
           ${{ inputs.buildx-args-common }}
           ${{ inputs.buildx-args-base }}
@@ -92,7 +102,9 @@ runs:
         image-tag-suffix: ${{ inputs.image-tag-suffix }}
         dockerfile: ${{ inputs.dockerfile }}.extras
         doppler-token: ${{ inputs.doppler-token }}
-        registry-password: ${{ inputs.registry-password }}
+        cloudsmith-repo-name: ${{ inputs.cloudsmith-repo-name }}
+        cloudsmith-service: ${{ inputs.cloudsmith-service }}
+        github-token: ${{ inputs.github-token }}
         buildx-args: |
           --build-arg=PARENT_IMAGE=${{ steps.build-base-image.outputs.image_name_with_tag }}
           ${{ inputs.buildx-args-common }}
