@@ -9,26 +9,25 @@
 name: Build Images
 on:
   workflow_call:
+    inputs:
+      target-repo-name:
+        required: false
+        type: string
+        default: "${{ vars.CLOUDSMITH_REPO_NAME }}-dev"
     secrets:
-      CI_APP_ID:
-        required: true
-      CI_APP_PRIVATE_KEY:
-        required: true
-      GL_SUNK_REGISTRY_TOKEN:
-        required: true
       ORG_BUILDKIT_CLIENT_TOKEN:
         required: true
 
 permissions:
   contents: read
   packages: read # Required for pulling the cw actions images
+  id-token: write # Required for the GitHub OIDC token
 
 env:
   ## Registry vars
-  CI_REGISTRY: registry.gitlab.com
-  CI_CACHE_IMAGE: registry.gitlab.com/coreweave/sunk/cache
-  # needs to be non-empty, value does not matter for auth
-  CI_REGISTRY_USER: gitlab
+  CI_REGISTRY: docker.cloudsmith.io
+  OUTPUT_CI_REGISTRY: docker.artifacts.coreweave.com
+  CI_CACHE_IMAGE: docker.cloudsmith.io/coreweave/slurm-containers-dev/cache
 
   build-settings: |
     - os: ubuntu22.04
@@ -67,6 +66,7 @@ jobs:
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
     strategy:
+      fail-fast: false
       matrix:
         build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.controller_matrix) }}
     steps:
@@ -78,17 +78,18 @@ jobs:
         with:
           context: ./images
           dockerfile: ./images/Dockerfile
-          image-target: coreweave/sunk/controller
+          image-target: ${{ inputs.target-repo-name }}/controller
           image-tag-suffix: ${{ matrix.build-settings.os }}
-          registry-password: ${{ secrets.GL_SUNK_REGISTRY_TOKEN }}
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
+          cloudsmith-repo-name: ${{ inputs.target-repo-name }}
+          cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           buildx-args-base: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
             --target controller
             --sbom=true
-            --provenance=true
 
   build-slurmd-cw-images:
     needs: parse-build-settings
@@ -105,14 +106,15 @@ jobs:
         with:
           context: ./images
           dockerfile: ./images/Dockerfile
-          image-target: coreweave/sunk/slurmd-cw-${{ matrix.build-settings.cuda_name }}
+          image-target: ${{ inputs.target-repo-name }}/slurmd-cw-${{ matrix.build-settings.cuda_name }}
           image-tag-suffix: ${{ matrix.build-settings.os }}
-          registry-password: ${{ secrets.GL_SUNK_REGISTRY_TOKEN }}
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
+          cloudsmith-repo-name: ${{ inputs.target-repo-name }}
+          cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           buildx-args-base: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
             --target controller
             --sbom=true
-            --provenance=true

@@ -29,13 +29,25 @@ inputs:
     description: "The Doppler token to fetch the BuildKit client certs (e.g. secrets.ORG_BUILDKIT_CLIENT_TOKEN)."
     required: true
     default: ""
-  registry-password:
-    description: "The password to authenticate to the container registry, stored as a repository secret."
-    required: true
-    default: ""
+  # registry-password:
+  #   description: "The password to authenticate to the container registry, stored as a repository secret."
+  #   required: true
+  #   default: ""
   buildx-args:
     description: "Extra arguments to pass to the `buildx build` command."
     required: false
+    default: ""
+  cloudsmith-repo-name:
+    description: "The name of the Cloudsmith repository to use."
+    required: true
+    default: ""
+  cloudsmith-service:
+    description: "The name of the Cloudsmith service account to use."
+    required: true
+    default: ""
+  github-token:
+    description: "The GitHub token to use for authentication."
+    required: true
     default: ""
 
 outputs:
@@ -52,17 +64,38 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Validate environment
+    - name: Get GitHub OIDC Token
+      id: oidc-github-token
+      uses: coreweave/actions/tools/oidc/github-token@get-oidc-github-token-v1.0.0
+      with:
+        audience: "${{ github.server_url }}/${{ github.repository_owner }}"
+
+    - name: Get Cloudsmith API Token
+      uses: coreweave/actions/tools/oidc/cloudsmith-token@get-cloudsmith-api-token-v1.0.0
+      with:
+        oidc-token: ${{ steps.oidc-github-token.outputs.id_token_audience }}
+        cloudsmith-org: coreweave
+        cloudsmith-service-slug: ${{ inputs.cloudsmith-service }}
+
+    - name: Create Registry Auth
       shell: bash
-      env:
-        CI_REGISTRY: ${{ env.CI_REGISTRY }}
-        CI_CACHE_IMAGE: ${{ env.CI_CACHE_IMAGE }}
-        CI_REGISTRY_USER: ${{ env.CI_REGISTRY_USER }}
       run: |
-        if [ -z "$CI_REGISTRY" ] || [ -z "$CI_CACHE_IMAGE" ] || [ -z "$CI_REGISTRY_USER" ]; then
-          echo "registry env variables not set. Check CI_REGISTRY, CI_CACHE_IMAGE, CI_REGISTRY_USER."
-          exit 1
-        fi
+        mkdir -p _tmp/auth/.docker
+        echo "::debug::Creating temporary registry auth..."
+        cat > _tmp/auth/.docker/config.json <<EOF
+        {
+          "auths": {
+            "${{ env.CI_REGISTRY }}": {
+              "username": "${{ inputs.cloudsmith-service }}",
+              "password": "${{ env.CLOUDSMITH_API_TOKEN }}"
+            },
+            "ghcr.io": {
+              "username": "${{ github.actor }}",
+              "password": "${{ inputs.github-token }}"
+            }
+          }
+        }
+        EOF
 
     - name: Determine image tag
       id: determine-tag
@@ -74,7 +107,8 @@ runs:
       id: assemble-image-name
       shell: bash
       run: |
-        echo "image_name=${{ env.CI_REGISTRY }}/${{ inputs.image-target }}" >> $GITHUB_OUTPUT
+        echo "image_name=${{ env.CI_REGISTRY }}/coreweave/${{ inputs.image-target }}" >> $GITHUB_OUTPUT
+        echo "output_image_name=${{ env.OUTPUT_CI_REGISTRY }}/${{ inputs.image-target }}" >> $GITHUB_OUTPUT
 
     - name: Compute hash of image name
       id: compute-image-name-hash
@@ -92,8 +126,6 @@ runs:
           echo "image-target=${{ inputs.image-target }}"
           echo "image-tag-suffix=${{ inputs.image-tag-suffix }}"
           echo "buildx-args=${{ inputs.buildx-args }}"
-          echo "registry=${{ env.CI_REGISTRY }}"
-          echo "username=${{ env.CI_REGISTRY_USER }}"
           echo "cache_image=${{ env.CI_CACHE_IMAGE }}"
         echo "::endgroup::"
 
@@ -116,17 +148,16 @@ runs:
         doppler-token: ${{ inputs.doppler-token }}
         doppler-config: prod
         doppler-project: devprod-buildkit-consumer
-        registry: ${{ env.CI_REGISTRY }}
-        username: ${{ env.CI_REGISTRY_USER }}
-        password: ${{ inputs.registry-password }}
+        docker-config: _tmp/auth/.docker/config.json
         # Using suggested cache compression options from https://github.com/moby/buildkit#registry-push-image-and-cache-separately
         buildx-args: |
           --platform=linux/amd64,linux/arm64
-          --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
-          --cache-to=type=registry,mode=max,compression=zstd,compression-level=1,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+          --debug
           ${{ inputs.buildx-args }}
+        # --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+        # --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
 
     - name: Output image name
       id: output-image-name
       shell: bash
-      run: echo "::notice::${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}"
+      run: echo "::notice::${{ steps.assemble-image-name.outputs.output_image_name }}:${{ steps.determine-tag.outputs.tag }}"

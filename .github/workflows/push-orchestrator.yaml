@@ -28,6 +28,10 @@ jobs:
   build-images:
     uses: ./.github/workflows/build-images.yaml
     secrets: inherit
+    permissions:
+      contents: read
+      packages: read # Required for pulling the cw actions images
+      id-token: write # Required for the GitHub OIDC token
 
   alls-green:
     if: always()
