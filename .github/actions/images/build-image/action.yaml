@@ -155,7 +155,7 @@ runs:
           --debug
           ${{ inputs.buildx-args }}
           --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
-          --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+          --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ignore-error=true,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
 
     - name: Sleep 3 min
       shell: bash

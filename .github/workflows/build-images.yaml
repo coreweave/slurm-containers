@@ -96,6 +96,7 @@ jobs:
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
     strategy:
+      fail-fast: false
       matrix:
         build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.slurmd_cw_matrix) }}
     steps:
