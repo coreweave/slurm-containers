@@ -157,9 +157,9 @@ runs:
         # --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
         # --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
 
-    - name: Sleep 1 min
+    - name: Sleep 3 min
       shell: bash
-      run: sleep 60
+      run: sleep 180
 
     - name: Output image name
       id: output-image-name
