@@ -101,15 +101,21 @@ RUN apt-get -qq update && \
 FROM builder AS libjwt-builder
 ARG LIBJWT_VERSION
 WORKDIR /build
-RUN cd /build && \
-  curl --fail --show-error --silent --location \
-  --remote-name https://github.com/benmcollins/libjwt/releases/download/v${LIBJWT_VERSION}/libjwt-${LIBJWT_VERSION}.tar.bz2 && \
-  tar -xvf libjwt-${LIBJWT_VERSION}.tar.bz2 && \
-  cd libjwt-${LIBJWT_VERSION} && \
-  autoreconf -fi && \
-  ./configure --disable-doxygen-doc --disable-dependency-tracking --without-examples --prefix=/build/libjwt-install/ && \
-  make && \
-  make install
+# Download the source
+RUN curl --fail --show-error --silent --location \
+  --remote-name https://github.com/benmcollins/libjwt/releases/download/v${LIBJWT_VERSION}/libjwt-${LIBJWT_VERSION}.tar.bz2
+# Extract the source
+RUN tar -xvf libjwt-${LIBJWT_VERSION}.tar.bz2
+# Set working directory to the extracted source
+WORKDIR /build/libjwt-${LIBJWT_VERSION}
+# Prepare the build system
+RUN autoreconf -fi
+# Configure the build
+RUN ./configure --disable-doxygen-doc --disable-dependency-tracking --without-examples --prefix=/build/libjwt-install/
+# Build libjwt
+RUN make
+# Install libjwt
+RUN make install
 
 FROM builder AS slurm-builder
 # Slum version can be release version (ex. 22.05.7) or full git commit sha
