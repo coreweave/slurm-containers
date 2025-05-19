@@ -6,8 +6,8 @@
 #
 # See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
 
-name: "Build SUNK Images"
-description: "Composite workflow that builds SUNK images"
+name: "Build Slurm Images for SUNK"
+description: "Composite workflow that builds Slurm images for SUNK."
 inputs:
   context:
     description: "A directory containing a Dockerfile which buildx will use to build your image."
@@ -66,12 +66,12 @@ runs:
   steps:
     - name: Get GitHub OIDC Token
       id: oidc-github-token
-      uses: coreweave/actions/tools/oidc/github-token@get-oidc-github-token-v1.0.0
+      uses: coreweave/actions-public/tools/oidc/github-token@v1.0.0
       with:
         audience: "${{ github.server_url }}/${{ github.repository_owner }}"
 
     - name: Get Cloudsmith API Token
-      uses: coreweave/actions/tools/oidc/cloudsmith-token@get-cloudsmith-api-token-v1.0.0
+      uses: coreweave/actions-public/tools/oidc/cloudsmith-token@v1.0.0
       with:
         oidc-token: ${{ steps.oidc-github-token.outputs.id_token_audience }}
         cloudsmith-org: coreweave
@@ -137,7 +137,7 @@ runs:
 
     - name: Build image
       id: build-image
-      uses: coreweave/actions/build/buildx-build@buildx-build-action-v1.1.0
+      uses: coreweave/actions-public/build/buildx-build@v1.0.0
       with:
         context: ${{ inputs.context }}
         tags: ${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}
@@ -154,8 +154,8 @@ runs:
           --platform=linux/amd64,linux/arm64
           --debug
           ${{ inputs.buildx-args }}
-        # --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
-        # --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+          --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+          --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ignore-error=true,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
 
     - name: Output image name
       id: output-image-name

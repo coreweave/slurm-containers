@@ -14,6 +14,10 @@ on:
         required: false
         type: string
         default: "${{ vars.CLOUDSMITH_REPO_NAME }}-dev"
+    outputs:
+      built_images_json:
+        description: "JSON object containing all built images with their names and tags."
+        value: ${{ jobs.compile-image-names.outputs.built_images_json }}
     secrets:
       ORG_BUILDKIT_CLIENT_TOKEN:
         required: true
@@ -28,6 +32,10 @@ env:
   CI_REGISTRY: docker.cloudsmith.io
   OUTPUT_CI_REGISTRY: docker.artifacts.coreweave.com
   CI_CACHE_IMAGE: docker.cloudsmith.io/coreweave/slurm-containers-dev/cache
+  ## Image name artifact filenames
+  controller_image_names_artifact_file: controller_based_image_names
+  slurmd_image_names_artifact_file: slurmd_cw_image_names
+  combined_image_names_artifact_file: built_image_names.json
 
   build-settings: |
     - os: ubuntu22.04
@@ -90,18 +98,50 @@ jobs:
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
             --target controller
             --sbom=true
+      - name: Build image names artifact
+        id: build-image-names-artifact
+        shell: bash
+        run: |
+          # Build yaml for output artifact
+          # Structuring as yaml array makes it easier to merge all outputs in later step
+          yq -n '
+          [
+            {
+              "os":"${{ matrix.build-settings.os }}",
+              "images": {
+                "controller": {
+                  "image_name_with_tag": "${{ steps.build-controller.outputs.base_image_name_with_tag }}",
+                  "image_name": "${{ steps.build-controller.outputs.base_image_name }}",
+                  "image_tag": "${{ steps.build-controller.outputs.base_image_tag }}"
+                },
+                "controller-extras": {
+                  "image_name_with_tag": "${{ steps.build-controller.outputs.extras_image_name_with_tag }}",
+                  "image_name": "${{ steps.build-controller.outputs.extras_image_name }}",
+                  "image_tag": "${{ steps.build-controller.outputs.extras_image_tag }}"
+                }
+              }
+            }
+          ]' >> ${{ env.controller_image_names_artifact_file }}
+      - name: Upload image name artifact
+        id: upload-image-name-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.controller_image_names_artifact_file }}_${{ matrix.build-settings.os }}
+          path: "${{ env.controller_image_names_artifact_file }}"
 
   build-slurmd-cw-images:
     needs: parse-build-settings
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
     strategy:
+      fail-fast: false
       matrix:
         build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.slurmd_cw_matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Build slurmd-cw-${{ matrix.build-settings.cuda_name }} base and extras image
+        id: build-slurmd-cw
         uses: ./.github/actions/images/build-with-extras
         with:
           context: ./images
@@ -118,3 +158,71 @@ jobs:
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
             --target controller
             --sbom=true
+      - name: Build image names artifact
+        id: build-image-names-artifact
+        shell: bash
+        run: |
+          # Build yaml for output artifact
+          # Structuring as yaml array makes it easier to merge all outputs in later step
+          yq -n '
+          [
+            {
+              "os":"${{ matrix.build-settings.os }}",
+              "cuda":"${{ matrix.build-settings.cuda_name }}",
+              "images": {
+                "slurmd-cw": {
+                  "image_name_with_tag": "${{ steps.build-slurmd-cw.outputs.base_image_name_with_tag }}",
+                  "image_name": "${{ steps.build-slurmd-cw.outputs.base_image_name }}",
+                  "image_tag": "${{ steps.build-slurmd-cw.outputs.base_image_tag }}"
+                },
+                "slurmd-cw-extras": {
+                  "image_name_with_tag": "${{ steps.build-slurmd-cw.outputs.extras_image_name_with_tag }}",
+                  "image_name": "${{ steps.build-slurmd-cw.outputs.extras_image_name }}",
+                  "image_tag": "${{ steps.build-slurmd-cw.outputs.extras_image_tag }}"
+                }
+              }
+            }
+          ]' >> ${{ env.slurmd_image_names_artifact_file }}
+      - name: Upload image name artifact
+        id: upload-image-name-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.slurmd_image_names_artifact_file }}_${{ matrix.build-settings.os }}_${{ matrix.build-settings.cuda_name }}
+          path: "${{ env.slurmd_image_names_artifact_file }}"
+
+  compile-image-names:
+    needs:
+      - build-controller-based-images
+      - build-slurmd-cw-images
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    outputs:
+      built_images_json: ${{ steps.output-image-names.outputs.built_images_json }}
+    steps:
+      - name: Download controller based image names
+        uses: actions/download-artifact@v4
+        with:
+          path: image_name_artifacts
+          pattern: "${{ env.controller_image_names_artifact_file }}_*"
+      - name: Download slurmd-cw image names
+        uses: actions/download-artifact@v4
+        with:
+          path: image_name_artifacts
+          pattern: "${{ env.slurmd_image_names_artifact_file }}_*"
+      - name: Output image names
+        id: output-image-names
+        shell: bash
+        run: |
+          # Combine all image names artifacts and convert to json
+          # shellcheck disable=SC2016
+          _built_images_json=$(yq eval-all -o=json '. as $item ireduce ([]; . + $item )' image_name_artifacts/**/* | jq -c)
+          echo "$_built_images_json" > "${{ env.combined_image_names_artifact_file }}"
+          echo "DEBUG============="
+          echo "$_built_images_json"
+          echo "built_images_json=${_built_images_json}" >> "$GITHUB_OUTPUT"
+      - name: Upload built image name artifact
+        id: upload-built-image-names-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: built_image_names
+          path: "${{ env.combined_image_names_artifact_file }}"

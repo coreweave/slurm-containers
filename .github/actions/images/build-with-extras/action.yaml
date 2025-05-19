@@ -6,8 +6,8 @@
 #
 # See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
 
-name: "Build SUNK Base and Extras Images"
-description: "Composite workflow that builds base and extras images"
+name: "Build Slurm Base and Extras Images for SUNK"
+description: "Composite workflow that builds base and extras Slurm images for SUNK."
 inputs:
   context:
     description: "A directory containing a Dockerfile which buildx will use to build your image."
@@ -92,6 +92,12 @@ runs:
         buildx-args: |
           ${{ inputs.buildx-args-common }}
           ${{ inputs.buildx-args-base }}
+
+    # Required to ensure the cloudsmith is ready to serve the image
+    # Running a sleep command to wait for the image to be available, but a better solution would be to check the image availability
+    - name: Wait for Cloudsmith to be ready
+      shell: bash
+      run: sleep 180
 
     - name: Build extras image
       id: build-extras-image
