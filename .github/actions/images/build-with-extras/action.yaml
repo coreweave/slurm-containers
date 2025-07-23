@@ -13,8 +13,8 @@ inputs:
     description: "A directory containing a Dockerfile which buildx will use to build your image."
     required: true
     default: ""
-  image-target:
-    description: "The target image name for the base image. Extras image will be tagged as <image-target>-extras."
+  image-name:
+    description: "The target image name for the base image. Extras image will be tagged as <image-name>-extras."
     required: true
     default: ""
   image-tag-suffix:
@@ -82,7 +82,7 @@ runs:
       uses: ./.github/actions/images/build-image
       with:
         context: ${{ inputs.context }}
-        image-target: ${{ inputs.image-target }}
+        image-name: ${{ inputs.image-name }}
         image-tag-suffix: ${{ inputs.image-tag-suffix }}
         dockerfile: ${{ inputs.dockerfile }}
         doppler-token: ${{ inputs.doppler-token }}
@@ -93,18 +93,12 @@ runs:
           ${{ inputs.buildx-args-common }}
           ${{ inputs.buildx-args-base }}
 
-    # Required to ensure the cloudsmith is ready to serve the image
-    # Running a sleep command to wait for the image to be available, but a better solution would be to check the image availability
-    - name: Wait for Cloudsmith to be ready
-      shell: bash
-      run: sleep 180
-
     - name: Build extras image
       id: build-extras-image
       uses: ./.github/actions/images/build-image
       with:
         context: ${{ inputs.context }}
-        image-target: ${{ inputs.image-target }}-extras
+        image-name: ${{ inputs.image-name }}-extras
         image-tag-suffix: ${{ inputs.image-tag-suffix }}
         dockerfile: ${{ inputs.dockerfile }}.extras
         doppler-token: ${{ inputs.doppler-token }}

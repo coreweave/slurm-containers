@@ -13,7 +13,7 @@ inputs:
     description: "A directory containing a Dockerfile which buildx will use to build your image."
     required: true
     default: ""
-  image-target:
+  image-name:
     description: "The target image name."
     required: true
     default: ""
@@ -81,7 +81,7 @@ runs:
       shell: bash
       run: |
         mkdir -p _tmp/auth/.docker
-        echo "::debug::Creating temporary registry auth..."
+        echo "Creating temporary registry auth..."
         cat > _tmp/auth/.docker/config.json <<EOF
         {
           "auths": {
@@ -107,8 +107,8 @@ runs:
       id: assemble-image-name
       shell: bash
       run: |
-        echo "image_name=${{ env.CI_REGISTRY }}/coreweave/${{ inputs.image-target }}" >> $GITHUB_OUTPUT
-        echo "output_image_name=${{ env.OUTPUT_CI_REGISTRY }}/${{ inputs.image-target }}" >> $GITHUB_OUTPUT
+        echo "image_name=${{ env.CI_REGISTRY }}/coreweave/${{ inputs.cloudsmith-repo-name }}/${{ inputs.image-name }}" >> $GITHUB_OUTPUT
+        echo "output_image_name=${{ env.OUTPUT_CI_REGISTRY }}/${{ inputs.image-name }}" >> $GITHUB_OUTPUT
 
     - name: Compute hash of image name
       id: compute-image-name-hash
@@ -123,7 +123,8 @@ runs:
         echo "::group::Build Image inputs"
           echo "context=${{ inputs.context }}"
           echo "dockerfile=${{ inputs.dockerfile }}"
-          echo "image-target=${{ inputs.image-target }}"
+          echo "inputs.cloudsmith-repo-name=${{ inputs.cloudsmith-repo-name }}"
+          echo "image-name=${{ inputs.image-name }}"
           echo "image-tag-suffix=${{ inputs.image-tag-suffix }}"
           echo "buildx-args=${{ inputs.buildx-args }}"
           echo "cache_image=${{ env.CI_CACHE_IMAGE }}"
@@ -156,6 +157,50 @@ runs:
           ${{ inputs.buildx-args }}
           --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
           --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ignore-error=true,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+
+    - name: Setup Python
+      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+      with:
+        python-version: "3.13"
+    - name: Install cloudsmith-cli
+      shell: bash
+      run: |
+        echo "Downloading Cloudsmith cli..."
+        python -m pip install cloudsmith-cli
+        echo "Cloudsmith cli installed successfully."
+
+    - name: Wait for cloudsmith image to be ready
+      id: wait-for-cloudsmith-build
+      shell: bash
+      env:
+        CLOUDSMITH_API_KEY: ${{ env.CLOUDSMITH_API_TOKEN }}
+      run: |
+        echo "Waiting for Cloudsmith image to be ready..."
+        # MAX_RETRIES is set to 180 (30 minutes) with a sleep interval of 10 seconds
+        # This allows for a maximum of 180 attempts to check the image status
+        MAX_RETRIES=180
+        SLEEP_INTERVAL=10
+        RETRIES=0
+        while true; do
+          _sync_progress=$(cloudsmith ls pkgs coreweave/${{ inputs.cloudsmith-repo-name }} -q 'tag:${{ steps.determine-tag.outputs.tag }} AND name:^${{ inputs.image-name }}$' --sort -date --output-format json | jq -c '.data[0] | .sync_progress')
+          if [[ "$_sync_progress" -lt 100 ]]; then
+            echo "Image is still synchronizing (status: ${_sync_progress}%). Retrying in 10 seconds..."
+            sleep $SLEEP_INTERVAL
+            RETRIES=$((RETRIES + 1))
+            if [[ $RETRIES -ge $MAX_RETRIES ]]; then
+              echo "Max retries reached. Exiting..."
+              exit 1
+            fi
+          elif [[ "$_sync_progress" -eq 100 ]]; then
+            echo "Image is ready."
+            exit 0
+          elif [[ "$_sync_progress" -eq "null" ]]; then
+            echo "Unexepected response from Cloudsmith. Exiting..."
+            exit 1
+          else
+            RETRIES=$((RETRIES + 1))
+          fi
+        done
 
     - name: Output image name
       id: output-image-name

@@ -27,7 +27,7 @@ jobs:
     secrets: inherit
     permissions:
       contents: read
-      packages: read # Required for pulling the cw actions images
+      packages: write # Required for pulling the cw actions images
       id-token: write # Required for the GitHub OIDC token
 
   alls-green:

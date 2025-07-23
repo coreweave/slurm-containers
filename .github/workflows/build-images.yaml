@@ -24,14 +24,14 @@ on:
 
 permissions:
   contents: read
-  packages: read # Required for pulling the cw actions images
+  packages: write # Required for pulling the cw actions images and writing cache images
   id-token: write # Required for the GitHub OIDC token
 
 env:
   ## Registry vars
   CI_REGISTRY: docker.cloudsmith.io
   OUTPUT_CI_REGISTRY: docker.artifacts.coreweave.com
-  CI_CACHE_IMAGE: docker.cloudsmith.io/coreweave/slurm-containers-dev/cache
+  CI_CACHE_IMAGE: ghcr.io/coreweave/slurm-containers-dev/cache
   ## Image name artifact filenames
   controller_image_names_artifact_file: controller_based_image_names
   slurmd_image_names_artifact_file: slurmd_cw_image_names
@@ -86,7 +86,7 @@ jobs:
         with:
           context: ./images
           dockerfile: ./images/Dockerfile
-          image-target: ${{ inputs.target-repo-name }}/controller
+          image-name: controller
           image-tag-suffix: ${{ matrix.build-settings.os }}
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
           cloudsmith-repo-name: ${{ inputs.target-repo-name }}
@@ -146,7 +146,7 @@ jobs:
         with:
           context: ./images
           dockerfile: ./images/Dockerfile
-          image-target: ${{ inputs.target-repo-name }}/slurmd-cw-${{ matrix.build-settings.cuda_name }}
+          image-name: slurmd-cw-${{ matrix.build-settings.cuda_name }}
           image-tag-suffix: ${{ matrix.build-settings.os }}
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
           cloudsmith-repo-name: ${{ inputs.target-repo-name }}
