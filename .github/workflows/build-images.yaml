@@ -21,6 +21,10 @@ on:
     secrets:
       ORG_BUILDKIT_CLIENT_TOKEN:
         required: true
+      GL_SUNK_REGISTRY_USER:
+        required: true
+      GL_SUNK_REGISTRY_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -198,6 +202,7 @@ jobs:
     container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
     outputs:
       built_images_json: ${{ steps.output-image-names.outputs.built_images_json }}
+      images_to_copy: ${{ steps.output-image-names.outputs.images_to_copy }}
     steps:
       - name: Download controller based image names
         uses: actions/download-artifact@v4
@@ -216,13 +221,50 @@ jobs:
           # Combine all image names artifacts and convert to json
           # shellcheck disable=SC2016
           _built_images_json=$(yq eval-all -o=json '. as $item ireduce ([]; . + $item )' image_name_artifacts/**/* | jq -c)
-          echo "$_built_images_json" > "${{ env.combined_image_names_artifact_file }}"
-          echo "DEBUG============="
-          echo "$_built_images_json"
+          echo "$_built_images_json" > ${{ env.combined_image_names_artifact_file }}
+          _images_to_copy=$(jq -c '[.. | objects | {"src": (.image_name_with_tag // empty), "image_name": (.image_name | split("/")[-1]), "tag": .image_tag}]' ${{ env.combined_image_names_artifact_file }})
+
           echo "built_images_json=${_built_images_json}" >> "$GITHUB_OUTPUT"
+          echo "images_to_copy=${_images_to_copy}" >> "$GITHUB_OUTPUT"
+
+          echo "DEBUG=============(_built_images_json)"
+          echo "$_built_images_json"
+          echo "DEBUG============= (images_to_copy)"
+          echo "$_images_to_copy"
       - name: Upload built image name artifact
         id: upload-built-image-names-artifact
         uses: actions/upload-artifact@v4
         with:
           name: built_image_names
           path: "${{ env.combined_image_names_artifact_file }}"
+
+  copy-image-to-gitlab:
+    runs-on: cw
+    container: registry.gitlab.com/coreweave/sunk/ci:v5.4.0-2024-12-27T21.13.49Z # TODO SUNK-622, replace this image
+    needs: [compile-image-names]
+    strategy:
+      matrix:
+        image: ${{ fromJSON(needs.compile-image-names.outputs.images_to_copy) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build Registry Auth
+        id: build-registry-auth
+        uses: ./.github/actions/images/build-docker-config
+        with:
+          cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
+          github-token: ${{ github.token }}
+      - name: Copy images to GitLab registry using skopeo
+        env:
+          GITLAB_REGISTRY_USER: ${{ secrets.GL_SUNK_REGISTRY_USER }}
+          GITLAB_REGISTRY_PASSWORD: ${{ secrets.GL_SUNK_REGISTRY_TOKEN }}
+          GITLAB_REGISTRY: registry.gitlab.com
+        shell: bash
+        run: |
+          echo "Copying ${{ matrix.image.image_name }} image to GitLab registry..."
+          skopeo copy \
+            --src-creds ${{ vars.CLOUDSMITH_SERVICE }}:${{ env.CLOUDSMITH_API_TOKEN }} \
+            --dest-creds "$GITLAB_REGISTRY_USER":"$GITLAB_REGISTRY_PASSWORD" \
+            --multi-arch all \
+            docker://${{ matrix.image.src }} \
+            docker://"$GITLAB_REGISTRY"/coreweave/sunk/${{ matrix.image.image_name }}:${{ matrix.image.tag }}
