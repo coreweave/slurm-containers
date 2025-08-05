@@ -1,12 +1,7 @@
 #!/bin/bash
 
 # SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
-#
-# CoreWeave SUNK Software
-#
-# Copyright 2025 CoreWeave, Inc.
-#
-# See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
+
 
 
 cat >/usr/share/modules/modulefiles/image-defaults <<EOL
