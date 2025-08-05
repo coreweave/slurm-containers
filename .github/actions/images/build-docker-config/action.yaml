@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+#
+# CoreWeave SUNK Software
+#
+# Copyright 2025 CoreWeave, Inc.
+#
+# See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
+
+name: "Build Docker Config JSON"
+description: "Composite workflow that builds Docker config JSON"
+inputs:
+  cloudsmith-service:
+    description: "The name of the Cloudsmith service account to use."
+    required: true
+    default: ""
+  github-token:
+    description: "The GitHub token to use for authentication."
+    required: true
+    default: ""
+
+outputs:
+  docker_config_json:
+    description: "The Docker config JSON."
+    value: ${{ steps.create-registry-auth.outputs.docker_config_json }}
+  docker_config_json_filename:
+    description: "The Docker config JSON filename."
+    value: ${{ steps.create-registry-auth.outputs.docker_config_json_filename }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Get GitHub OIDC Token
+      id: oidc-github-token
+      uses: coreweave/actions-public/tools/oidc/github-token@v1.0.0
+      with:
+        audience: "${{ github.server_url }}/${{ github.repository_owner }}"
+
+    - name: Get Cloudsmith API Token
+      uses: coreweave/actions-public/tools/oidc/cloudsmith-token@v1.0.0
+      with:
+        oidc-token: ${{ steps.oidc-github-token.outputs.id_token_audience }}
+        cloudsmith-org: coreweave
+        cloudsmith-service-slug: ${{ inputs.cloudsmith-service }}
+
+    - name: Create Registry Auth
+      id: create-registry-auth
+      shell: bash
+      run: |
+        _docker_config_json_folder="${GITHUB_WORKSPACE}/_tmp/auth/.docker/"
+        _docker_config_json_filename="config.json"
+        mkdir -p ${_docker_config_json_folder}
+        echo "Creating temporary registry auth..."
+        cat > ${_docker_config_json_folder}/${_docker_config_json_filename} <<EOF
+        {
+          "auths": {
+            "${{ env.CI_REGISTRY }}": {
+              "username": "${{ inputs.cloudsmith-service }}",
+              "password": "${{ env.CLOUDSMITH_API_TOKEN }}"
+            },
+            "ghcr.io": {
+              "username": "${{ github.actor }}",
+              "password": "${{ inputs.github-token }}"
+            }
+          }
+        }
+        EOF
+        echo "docker_config_json=$(jq -c . ${_docker_config_json_folder}/${_docker_config_json_filename})" >> $GITHUB_OUTPUT
+        echo "docker_config_json_filename=${_docker_config_json_folder}/${_docker_config_json_filename}" >> $GITHUB_OUTPUT

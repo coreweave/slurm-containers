@@ -29,10 +29,6 @@ inputs:
     description: "The Doppler token to fetch the BuildKit client certs (e.g. secrets.ORG_BUILDKIT_CLIENT_TOKEN)."
     required: true
     default: ""
-  # registry-password:
-  #   description: "The password to authenticate to the container registry, stored as a repository secret."
-  #   required: true
-  #   default: ""
   buildx-args:
     description: "Extra arguments to pass to the `buildx build` command."
     required: false
@@ -64,38 +60,12 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Get GitHub OIDC Token
-      id: oidc-github-token
-      uses: coreweave/actions-public/tools/oidc/github-token@v1.0.0
+    - name: Build Registry Auth
+      id: build-registry-auth
+      uses: ./.github/actions/images/build-docker-config
       with:
-        audience: "${{ github.server_url }}/${{ github.repository_owner }}"
-
-    - name: Get Cloudsmith API Token
-      uses: coreweave/actions-public/tools/oidc/cloudsmith-token@v1.0.0
-      with:
-        oidc-token: ${{ steps.oidc-github-token.outputs.id_token_audience }}
-        cloudsmith-org: coreweave
-        cloudsmith-service-slug: ${{ inputs.cloudsmith-service }}
-
-    - name: Create Registry Auth
-      shell: bash
-      run: |
-        mkdir -p _tmp/auth/.docker
-        echo "Creating temporary registry auth..."
-        cat > _tmp/auth/.docker/config.json <<EOF
-        {
-          "auths": {
-            "${{ env.CI_REGISTRY }}": {
-              "username": "${{ inputs.cloudsmith-service }}",
-              "password": "${{ env.CLOUDSMITH_API_TOKEN }}"
-            },
-            "ghcr.io": {
-              "username": "${{ github.actor }}",
-              "password": "${{ inputs.github-token }}"
-            }
-          }
-        }
-        EOF
+        cloudsmith-service: ${{ inputs.cloudsmith-service }}
+        github-token: ${{ inputs.github-token }}
 
     - name: Determine image tag
       id: determine-tag
@@ -149,7 +119,7 @@ runs:
         doppler-token: ${{ inputs.doppler-token }}
         doppler-config: prod
         doppler-project: devprod-buildkit-consumer
-        docker-config: _tmp/auth/.docker/config.json
+        docker-config: ${{ steps.build-registry-auth.outputs.docker_config_json_filename }}
         # Using suggested cache compression options from https://github.com/moby/buildkit#registry-push-image-and-cache-separately
         buildx-args: |
           --platform=linux/amd64,linux/arm64
