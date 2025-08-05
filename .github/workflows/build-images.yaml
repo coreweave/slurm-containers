@@ -231,34 +231,3 @@ jobs:
         with:
           name: built_image_names
           path: "${{ env.combined_image_names_artifact_file }}"
-
-  copy-image-to-gitlab:
-    runs-on: cw
-    container: registry.gitlab.com/coreweave/sunk/ci:v5.4.0-2024-12-27T21.13.49Z # TODO SUNK-622, replace this image
-    needs: [compile-image-names]
-    strategy:
-      matrix:
-        image: ${{ fromJSON(needs.compile-image-names.outputs.images_to_copy) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Build Registry Auth
-        id: build-registry-auth
-        uses: ./.github/actions/images/build-docker-config
-        with:
-          cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
-          github-token: ${{ github.token }}
-      - name: Copy images to GitLab registry using skopeo
-        env:
-          GITLAB_REGISTRY_USER: ${{ secrets.GL_SUNK_REGISTRY_USER }}
-          GITLAB_REGISTRY_PASSWORD: ${{ secrets.GL_SUNK_REGISTRY_TOKEN }}
-          GITLAB_REGISTRY: registry.gitlab.com
-        shell: bash
-        run: |
-          echo "Copying ${{ matrix.image.image_name }} image to GitLab registry..."
-          skopeo copy \
-            --src-creds ${{ vars.CLOUDSMITH_SERVICE }}:${{ env.CLOUDSMITH_API_TOKEN }} \
-            --dest-creds "$GITLAB_REGISTRY_USER":"$GITLAB_REGISTRY_PASSWORD" \
-            --multi-arch all \
-            docker://${{ matrix.image.src }} \
-            docker://"$GITLAB_REGISTRY"/coreweave/sunk/${{ matrix.image.image_name }}:${{ matrix.image.tag }}
