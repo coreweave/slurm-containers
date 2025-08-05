@@ -72,7 +72,7 @@ jobs:
   build-controller-based-images:
     needs: parse-build-settings
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
     strategy:
       fail-fast: false
       matrix:
@@ -132,7 +132,7 @@ jobs:
   build-slurmd-cw-images:
     needs: parse-build-settings
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
     strategy:
       fail-fast: false
       matrix:
@@ -195,7 +195,7 @@ jobs:
       - build-controller-based-images
       - build-slurmd-cw-images
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
     outputs:
       built_images_json: ${{ steps.output-image-names.outputs.built_images_json }}
     steps:

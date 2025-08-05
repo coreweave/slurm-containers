@@ -128,17 +128,6 @@ runs:
           --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
           --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ignore-error=true,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
 
-    - name: Setup Python
-      uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
-      with:
-        python-version: "3.13"
-    - name: Install cloudsmith-cli
-      shell: bash
-      run: |
-        echo "Downloading Cloudsmith cli..."
-        python -m pip install cloudsmith-cli
-        echo "Cloudsmith cli installed successfully."
-
     - name: Wait for cloudsmith image to be ready
       id: wait-for-cloudsmith-build
       shell: bash
