@@ -69,7 +69,7 @@ jobs:
           echo "controller_matrix=${_controller_matrix}" >> "$GITHUB_OUTPUT"
           echo "slurmd_cw_matrix=${_slurmd_cw_matrix}" >> "$GITHUB_OUTPUT"
 
-  build-controller-based-images:
+  build-controller-images:
     needs: parse-build-settings
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
@@ -192,7 +192,7 @@ jobs:
 
   compile-image-names:
     needs:
-      - build-controller-based-images
+      - build-controller-images
       - build-slurmd-cw-images
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
