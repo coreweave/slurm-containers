@@ -134,7 +134,9 @@ runs:
         SLEEP_INTERVAL=10
         RETRIES=0
         while true; do
-          _sync_progress=$(cloudsmith ls pkgs coreweave/${{ inputs.cloudsmith-repo-name }} -q 'tag:${{ steps.determine-tag.outputs.tag }} AND name:^${{ inputs.image-name }}$' --sort -date --output-format json | jq -c '.data[0] | .sync_progress')
+          _pkg_info_json=$(cloudsmith ls pkgs coreweave/${{ inputs.cloudsmith-repo-name }} -q 'tag:${{ steps.determine-tag.outputs.tag }} AND name:^${{ inputs.image-name }}$' --sort -date --output-format json)
+          _sync_progress=$(echo "$_pkg_info_json" | jq -c '.data[0] | .sync_progress')
+          _is_downloadable=$(echo "$_pkg_info_json" | jq -c '.data[0] | .is_downloadable')
           if [[ "$_sync_progress" -lt 100 ]]; then
             echo "Image is still synchronizing (status: ${_sync_progress}%). Retrying in 10 seconds..."
             sleep $SLEEP_INTERVAL
@@ -143,13 +145,15 @@ runs:
               echo "Max retries reached. Exiting..."
               exit 1
             fi
-          elif [[ "$_sync_progress" -eq 100 ]]; then
+          elif [[ "$_sync_progress" -eq 100 && "$_is_downloadable" -eq "true" ]]; then
             echo "Image is ready."
             exit 0
           elif [[ "$_sync_progress" -eq "null" ]]; then
-            echo "Unexepected response from Cloudsmith. Exiting..."
+            echo "Unexpected response from Cloudsmith. Exiting..."
             exit 1
           else
+            echo "Sync progress: ${_sync_progress}%, is_downloadable: ${_is_downloadable}. Retrying in 10 seconds..."
+            sleep $SLEEP_INTERVAL
             RETRIES=$((RETRIES + 1))
           fi
         done
