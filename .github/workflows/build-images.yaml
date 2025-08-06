@@ -40,11 +40,13 @@ env:
       controller_parent_image: ubuntu:jammy-20240911.1
       cuda:
         - name: cu122
-          image: ghcr.io/coreweave/nccl-tests:12.2.2-devel-ubuntu22.04-nccl2.23.4-1-3ef8839
+          image: ghcr.io/coreweave/nccl-tests:12.2.2-devel-ubuntu22.04-nccl2.27.5-1-d5a135d
         - name: cu124
-          image: ghcr.io/coreweave/nccl-tests:12.4.1-devel-ubuntu22.04-nccl2.23.4-1-3ef8839
+          image: ghcr.io/coreweave/nccl-tests:12.4.1-devel-ubuntu22.04-nccl2.27.5-1-d5a135d
         - name: cu128
-          image: ghcr.io/coreweave/nccl-tests:12.8.0-devel-ubuntu22.04-nccl2.25.1-1-57fa979
+          image: ghcr.io/coreweave/nccl-tests:12.8.1-devel-ubuntu22.04-nccl2.27.5-1-d5a135d
+        - name: cu129
+          image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu22.04-nccl2.27.5-1-d5a135d
       slurm_pmix_version: pmix2
       libjson_version: 5
 
