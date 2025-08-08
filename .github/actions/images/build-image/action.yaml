@@ -147,6 +147,8 @@ runs:
             fi
           elif [[ "$_sync_progress" -eq 100 && "$_is_downloadable" -eq "true" ]]; then
             echo "Image is ready."
+            # Add timeout to allow image to be ready as there is sometimes a delay after sync_progress hits 100%
+            sleep 30
             exit 0
           elif [[ "$_sync_progress" -eq "null" ]]; then
             echo "Unexpected response from Cloudsmith. Exiting..."
