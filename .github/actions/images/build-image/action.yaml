@@ -39,6 +39,14 @@ inputs:
     description: "The GitHub token to use for authentication."
     required: true
     default: ""
+  cache-scope:
+    description: "Optional logical cache scope name so multiple images share the same buildx cache (e.g. 'controller' for base and extras). Defaults to image-name when empty."
+    required: false
+    default: ""
+  wait-for-registry-availability:
+    description: "If true, wait for the image to be downloadable from Cloudsmith before finishing. Set false to allow dependent builds to start immediately."
+    required: false
+    default: "true"
 
 outputs:
   image_name_with_tag:
@@ -78,7 +86,12 @@ runs:
       id: compute-image-name-hash
       shell: bash
       run: |
-        echo "hash=$(echo -n ${{ steps.assemble-image-name.outputs.image_name }} | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+        # Use cache-scope when provided; otherwise default to the image-name input
+        CACHE_KEY="${{ inputs.cache-scope }}"
+        if [ -z "$CACHE_KEY" ]; then
+          CACHE_KEY="${{ inputs.image-name }}"
+        fi
+        echo "hash=$(echo -n "$CACHE_KEY" | sha256sum | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
     - name: Debug
       if: runner.debug == '1'
@@ -122,6 +135,7 @@ runs:
           --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ignore-error=true,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
 
     - name: Wait for cloudsmith image to be ready
+      if: inputs.wait-for-registry-availability == 'true'
       id: wait-for-cloudsmith-build
       shell: bash
       env:
