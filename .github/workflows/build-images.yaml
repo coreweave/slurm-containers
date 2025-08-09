@@ -92,11 +92,10 @@ jobs:
           cloudsmith-repo-name: ${{ inputs.target-repo-name }}
           cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          buildx-args-base: |
+          buildx-args-common: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
-            --target controller
             --sbom=true
       - name: Build image names artifact
         id: build-image-names-artifact
@@ -152,11 +151,10 @@ jobs:
           cloudsmith-repo-name: ${{ inputs.target-repo-name }}
           cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          buildx-args-base: |
+          buildx-args-common: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
-            --target controller
             --sbom=true
       - name: Build image names artifact
         id: build-image-names-artifact

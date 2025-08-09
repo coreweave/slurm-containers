@@ -22,6 +22,11 @@ ARG PYTHON_VERSION=3.10
 # This needs to match the `nsscache.nsscacheConfig.default.files_dir` setting in the values
 ARG NSSCACHE_FILES_DIR="/etc/nsscache"
 
+## Controller Extras args
+ARG CONDA_VERSION=py312_24.7.1-0
+ARG MICROMAMBA_VERSION=1.5.10-0
+ARG NHC_VERSION=1.4.3
+
 FROM $PARENT_IMAGE AS builder
 
 ARG LIBJSON_VERSION
@@ -438,3 +443,104 @@ RUN pam-auth-update --enable mkhomedir
 ENV S6_KEEP_ENV=1
 
 ENTRYPOINT ["/init"]
+
+# Controller Extras Image for Slurm Login and compute nodes
+# Should contain general tooling but not specific libraries as these live in the specific node images.
+
+# Install nhc
+FROM builder AS nhc-builder
+ARG NHC_VERSION
+WORKDIR /build
+RUN git clone https://github.com/mej/nhc.git -b ${NHC_VERSION} --depth=1 && \
+  cd nhc && \
+  ./autogen.sh && \
+  ./configure \
+  --prefix=/build/nhc/INSTALLDIR/usr \
+  --sysconfdir=/build/nhc/INSTALLDIR/etc \
+  --sbindir=/build/nhc/INSTALLDIR/usr/sbin \
+  --libexecdir=/build/nhc/INSTALLDIR/usr/lib && \
+  make install
+
+# Extras Image
+FROM controller AS controller-extras
+ARG DEBIAN_FRONTEND=noninteractive
+
+# End user utils
+RUN apt-get -qq update && \
+  apt-get -qq install -y --no-install-recommends \
+  bc \
+  bzip2 \
+  emacs \
+  fio \
+  git \
+  glances \
+  less \
+  libgl1-mesa-glx \
+  locales \
+  lua-sec \
+  lua5.3 \
+  mosh \
+  nano \
+  nfs-common \
+  openjdk-8-jre \
+  pdsh \
+  psmisc \
+  rsync \
+  s3cmd \
+  silversearcher-ag \
+  sysstat \
+  tmux \
+  unzip \
+  vim \
+  wget \
+  xz-utils \
+  # Explicitly uninstall systemd ( dependency of emacs )
+  systemd- && \
+  apt-get -qq clean && \
+  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN locale-gen en_US.UTF-8
+COPY --from=nhc-builder /build/nhc/INSTALLDIR/ /
+
+# Global environments that are useful everywhere in the cluster
+RUN echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk" >> /etc/environment && \
+  echo "NCCL_IB_HCA=ibp" >> /etc/environment && \
+  echo "NCCL_IB_PCI_RELAXED_ORDERING=1" >> /etc/environment && \
+  echo "NCCL_SOCKET_IFNAME=eth0" >> /etc/environment && \
+  echo "NVIDIA_VISIBLE_DEVICES=all" >> /etc/environment && \
+  echo "SHARP_COLL_ENABLE_PCI_RELAXED_ORDERING=1" >> /etc/environment && \
+  echo "UCX_VFS_ENABLE=no" >> /etc/environment
+
+# Add custom coreweave motd
+RUN rm /etc/update-motd.d/*
+
+# Install conda
+# A user can initialize conda for their shell with: /opt/conda/bin/conda init bash --user
+## Note, this script must end in `.sh` because their installer is janky
+ARG CONDA_VERSION
+RUN arch=$(uname -m) && \
+  curl --fail --show-error --silent --location --output /tmp/conda_installer.sh \
+  https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-${arch}.sh  && \
+  bash /tmp/conda_installer.sh -b -u -p /opt/conda && \
+  rm /tmp/conda_installer.sh
+
+RUN /opt/conda/bin/conda init bash
+
+# Install micromamba
+# A user can initialize micromamba with: micromamba shell init
+ARG MICROMAMBA_VERSION
+RUN arch=$(uname -m | sed 's/x86_//') && \
+  cd /tmp && \
+  curl --fail --show-error --silent --location \
+  --remote-name https://github.com/mamba-org/micromamba-releases/releases/download/${MICROMAMBA_VERSION}/micromamba-linux-${arch} && \
+  install micromamba-linux-${arch} /usr/local/bin/micromamba && \
+  echo "alias mm=micromamba" >> /etc/profile.d/01-aliases.sh && \
+  rm /tmp/micromamba-linux-${arch}
+
+# Add AWS CLI
+RUN arch=$(uname -m) && \
+  curl --fail --show-error --silent --location --output "awscliv2.zip" \
+  "https://awscli.amazonaws.com/awscli-exe-linux-${arch}.zip" && \
+  unzip -q awscliv2.zip && \
+  sudo ./aws/install && \
+  rm -r awscliv2.zip aws

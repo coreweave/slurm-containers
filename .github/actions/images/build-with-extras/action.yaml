@@ -84,6 +84,7 @@ runs:
         cloudsmith-service: ${{ inputs.cloudsmith-service }}
         github-token: ${{ inputs.github-token }}
         buildx-args: |
+          --target controller
           ${{ inputs.buildx-args-common }}
           ${{ inputs.buildx-args-base }}
 
@@ -94,12 +95,12 @@ runs:
         context: ${{ inputs.context }}
         image-name: ${{ inputs.image-name }}-extras
         image-tag-suffix: ${{ inputs.image-tag-suffix }}
-        dockerfile: ${{ inputs.dockerfile }}.extras
+        dockerfile: ${{ inputs.dockerfile }}
         doppler-token: ${{ inputs.doppler-token }}
         cloudsmith-repo-name: ${{ inputs.cloudsmith-repo-name }}
         cloudsmith-service: ${{ inputs.cloudsmith-service }}
         github-token: ${{ inputs.github-token }}
         buildx-args: |
-          --build-arg=PARENT_IMAGE=${{ steps.build-base-image.outputs.image_name_with_tag }}
+          --target controller-extras
           ${{ inputs.buildx-args-common }}
           ${{ inputs.buildx-args-extras }}
