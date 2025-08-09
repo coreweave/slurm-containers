@@ -136,6 +136,7 @@ runs:
         while true; do
           _pkg_info_json=$(cloudsmith ls pkgs coreweave/${{ inputs.cloudsmith-repo-name }} -q 'tag:${{ steps.determine-tag.outputs.tag }} AND name:^${{ inputs.image-name }}$' --sort -date --output-format json)
           _sync_progress=$(echo "$_pkg_info_json" | jq -c '.data[0] | .sync_progress')
+          _sync_completed=$(echo "$_pkg_info_json" | jq -c '.data[0] | .is_sync_completed')
           _is_downloadable=$(echo "$_pkg_info_json" | jq -c '.data[0] | .is_downloadable')
           if [[ "$_sync_progress" -lt 100 ]]; then
             echo "Image is still synchronizing (status: ${_sync_progress}%). Retrying in 10 seconds..."
@@ -145,7 +146,7 @@ runs:
               echo "Max retries reached. Exiting..."
               exit 1
             fi
-          elif [[ "$_sync_progress" -eq 100 && "$_is_downloadable" -eq "true" ]]; then
+          elif [[ "$_sync_completed" -eq "true" && "$_is_downloadable" -eq "true" ]]; then
             echo "Image is ready."
             # Add timeout to allow image to be ready as there is sometimes a delay after sync_progress hits 100%
             sleep 30
