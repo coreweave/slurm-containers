@@ -1,10 +1,4 @@
-# SPDX-FileCopyrightText: © 2024 CoreWeave, Inc. <sunk@coreweave.com>
-#
-# CoreWeave SUNK Software
-#
-# Copyright 2024 CoreWeave, Inc.
-#
-# See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
 
 self-hosted-runner:
   # Labels of self-hosted runner in array of strings.

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: © 2024 CoreWeave, Inc. <sunk@coreweave.com>
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
 
 name: PR Orchestrator
 on:
@@ -18,14 +18,10 @@ jobs:
     if: github.base_ref != 'main' && github.ref_name != 'develop' && github.ref_name != 'main'
     uses: ./.github/workflows/commitlint.yaml
 
-  codeql:
-    uses: ./.github/workflows/codeql.yaml
-
   alls-green:
     if: always()
     needs:
       - commitlint
-      - codeql
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
     steps:

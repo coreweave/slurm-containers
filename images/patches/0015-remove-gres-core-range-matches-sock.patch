@@ -1,0 +1,17 @@
+diff --git a/src/interfaces/gres.c b/src/interfaces/gres.c
+index 55c1957dd4..2e3ac67196 100644
+--- a/src/interfaces/gres.c
++++ b/src/interfaces/gres.c
+@@ -3766,9 +3766,9 @@ static int _foreach_rebuild_topo(void *x, void *args)
+ 				gres_ns->topo_core_bitmap[topo_cnt]);
+ 			gres_ns->topo_core_bitmap[topo_cnt] = tmp_bitmap;
+ 		}
+-		if (_check_core_range_matches_sock(tmp_bitmap, rebuild_topo,
+-						   gres_slurmd_conf))
+-			return -1;
++		// if (_check_core_range_matches_sock(tmp_bitmap, rebuild_topo,
++		// 				   gres_slurmd_conf))
++		// 	return -1;
+
+ 		rebuild_topo->cpus_config = rebuild_topo->core_cnt;
+ 	} else if (rebuild_topo->cpus_config && !rebuild_topo->cpu_config_err) {

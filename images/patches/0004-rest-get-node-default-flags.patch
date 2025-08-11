@@ -1,0 +1,13 @@
+diff --git a/src/slurmrestd/plugins/openapi/slurmctld/nodes.c b/src/slurmrestd/plugins/openapi/slurmctld/nodes.c
+index f10f90a579..60f220e138 100644
+--- a/src/slurmrestd/plugins/openapi/slurmctld/nodes.c
++++ b/src/slurmrestd/plugins/openapi/slurmctld/nodes.c
+@@ -89,7 +89,7 @@ static void _dump_nodes(ctxt_t *ctxt, char *name)
+ 	}
+
+ 	if (!query.show_flags)
+-		query.show_flags = SHOW_ALL | SHOW_DETAIL | SHOW_MIXED;
++		query.show_flags = SHOW_ALL | SHOW_MIXED;
+
+ 	if (!name) {
+ 		if ((slurm_load_node(query.update_time, &node_info_ptr,

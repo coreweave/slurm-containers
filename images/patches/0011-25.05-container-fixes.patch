@@ -1,0 +1,1323 @@
+diff --git a/slurm/slurm.h b/slurm/slurm.h
+index 655ff9f510..29ea3a1e6d 100644
+--- a/slurm/slurm.h
++++ b/slurm/slurm.h
+@@ -931,7 +931,8 @@ typedef enum cpu_bind_type {	/* cpu binding type from --cpu-bind=... */
+ 	 * the contents of TaskPluginParams */
+ 	SLURMD_OFF_SPEC            = 0x40000,
+ 	CPU_BIND_OFF               = 0x80000,	/* Disable binding */
+-	OOM_KILL_STEP              = 0x100000
++	OOM_KILL_STEP              = 0x100000,
++	SLURMD_SPEC_OVERRIDE       = 0x200000
+ } cpu_bind_type_t;
+
+ #define CPU_BIND_T_TO_MASK 0x001e
+diff --git a/src/api/config_info.c b/src/api/config_info.c
+index 206c015d6b..755ac9d1d5 100644
+--- a/src/api/config_info.c
++++ b/src/api/config_info.c
+@@ -575,6 +575,8 @@ static void _sprint_task_plugin_params(char *str,
+ 		strcat(str, "OOMKillStep,");
+ 	if (task_plugin_params & SLURMD_OFF_SPEC)
+ 		strcat(str, "SlurmdOffSpec,");
++	if (task_plugin_params & SLURMD_SPEC_OVERRIDE)
++		strcat(str, "SlurmdSpecOverride,");
+
+ 	slurm_sprint_cpu_bind_type(tmp_str, task_plugin_params);
+ 	/*
+diff --git a/src/common/node_conf.c b/src/common/node_conf.c
+index c9c2f0fc10..9680345e36 100644
+--- a/src/common/node_conf.c
++++ b/src/common/node_conf.c
+@@ -495,7 +495,7 @@ extern int build_node_spec_bitmap(node_record_t *node_ptr)
+ /*
+  * Select cores and CPUs to be reserved for core specialization.
+  */
+-static void _select_spec_cores(node_record_t *node_ptr)
++extern void node_conf_select_spec_cores(node_record_t *node_ptr)
+ {
+ 	int spec_cores, res_core, res_sock, res_off;
+ 	int from_core, to_core, incr_core, from_sock, to_sock, incr_sock;
+@@ -739,7 +739,7 @@ extern config_record_t *create_config_record(void)
+  * OUT:
+  *	node_ptr->cpu_spec_list
+  */
+-static int _convert_cpu_spec_list(node_record_t *node_ptr)
++extern int node_conf_convert_cpu_spec_list(node_record_t *node_ptr)
+ {
+ 	int i;
+ 	bitstr_t *cpu_spec_bitmap;
+@@ -812,9 +812,9 @@ static void _init_node_record(node_record_t *node_ptr,
+ 	if (node_ptr->cpu_spec_list) {
+ 		build_node_spec_bitmap(node_ptr);
+ 		if (node_ptr->tpc > 1)
+-			_convert_cpu_spec_list(node_ptr);
++			node_conf_convert_cpu_spec_list(node_ptr);
+ 	} else if (node_ptr->core_spec_cnt) {
+-		_select_spec_cores(node_ptr);
++		node_conf_select_spec_cores(node_ptr);
+ 	}
+
+ 	node_ptr->cpus_efctv = node_ptr->cpus -
+diff --git a/src/common/node_conf.h b/src/common/node_conf.h
+index a59aa15745..0b69323d76 100644
+--- a/src/common/node_conf.h
++++ b/src/common/node_conf.h
+@@ -548,4 +548,16 @@ extern config_record_t *config_record_from_node_record(node_record_t *node_ptr);
+
+ extern int list_find_feature(void *feature_entry, void *key);
+
++/*
++ * Convert CPU list to reserve whole cores
++ * OUT:
++ *  node_ptr->cpu_spec_list
++ */
++extern int node_conf_convert_cpu_spec_list(node_record_t *node_ptr);
++
++/*
++ * Select cores and CPUs to be reserved for core specialization.
++ */
++extern void node_conf_select_spec_cores(node_record_t *node_ptr);
++
+ #endif /* !_HAVE_NODE_CONF_H */
+diff --git a/src/common/read_config.c b/src/common/read_config.c
+index 5c58f65a56..c028b8b06c 100644
+--- a/src/common/read_config.c
++++ b/src/common/read_config.c
+@@ -5489,6 +5489,17 @@ static int _validate_and_set_defaults(slurm_conf_t *conf,
+ 					return SLURM_ERROR;
+ 				}
+ 				conf->task_plugin_param |= OOM_KILL_STEP;
++			} else if (!xstrcasecmp(tok, "SlurmdSpecOverride")) {
++				if (!xstrstr(conf->task_plugin,
++					     "task/cgroup")) {
++					error("TaskPluginParam=SlurmdSpecOverride must be used with task/cgroup");
++					return SLURM_ERROR;
++				}
++				if (!xstrstr(conf->select_type, "cons_tres")) {
++					error("TaskPluginParam=SlurmdSpecOverride must be used with cons/tres");
++					return SLURM_ERROR;
++				}
++				conf->task_plugin_param |= SLURMD_SPEC_OVERRIDE;
+ 			} else {
+ 				error("Bad TaskPluginParam: %s", tok);
+ 				return SLURM_ERROR;
+@@ -5498,6 +5509,12 @@ static int _validate_and_set_defaults(slurm_conf_t *conf,
+ 		xfree(temp_str);
+ 	}
+
++	if ((conf->task_plugin_param & SLURMD_OFF_SPEC) &&
++	    (conf->task_plugin_param & SLURMD_SPEC_OVERRIDE)) {
++		error("TaskPluginParams SlurmdOffSpec and SlurmdSpecOverride are mutually exclusive");
++		return SLURM_ERROR;
++	}
++
+ 	(void) s_p_get_string(&conf->task_epilog, "TaskEpilog", hashtbl);
+ 	(void) s_p_get_string(&conf->task_prolog, "TaskProlog", hashtbl);
+
+diff --git a/src/plugins/cgroup/v1/cgroup_v1.c b/src/plugins/cgroup/v1/cgroup_v1.c
+index dee52e1916..ac18e22262 100644
+--- a/src/plugins/cgroup/v1/cgroup_v1.c
++++ b/src/plugins/cgroup/v1/cgroup_v1.c
+@@ -891,11 +891,51 @@ extern bool cgroup_p_has_pid(pid_t pid)
+ 	return rc;
+ }
+
++static void _get_mem_recursive(xcgroup_t *cg, cgroup_limits_t *limits)
++{
++	char *mem_max = NULL, *tmp_str = NULL;
++	size_t mem_sz;
++	unsigned long mem_lim;
++	unsigned long page_counter_max = LONG_MAX - sysconf(_SC_PAGE_SIZE) + 1;
++
++	if (!xstrcmp(cg->path, "/sys/fs/cgroup"))
++		goto end;
++
++	/* Break when there is no memory controller anymore */
++	if (common_cgroup_get_param(cg, "memory.limit_in_bytes",
++				    &mem_max, &mem_sz) != SLURM_SUCCESS)
++		goto end;
++
++	/* Check ancestor */
++	mem_lim = slurm_atoul(mem_max);
++	if (mem_lim == page_counter_max) {
++		tmp_str = xdirname(cg->path);
++		xfree(cg->path);
++		cg->path = tmp_str;
++		_get_mem_recursive(cg, limits);
++		if (limits->limit_in_bytes != NO_VAL64)
++			goto end;
++	} else {
++		/* found it! */
++		limits->limit_in_bytes = mem_lim;
++	}
++end:
++	xfree(mem_max);
++}
++
++
+ extern cgroup_limits_t *cgroup_p_constrain_get(cgroup_ctl_type_t sub,
+ 					       cgroup_level_t level)
+ {
+ 	int rc = SLURM_SUCCESS;
+-	cgroup_limits_t *limits = xmalloc(sizeof(*limits));
++	cgroup_limits_t *limits;
++	xcgroup_t tmp_cg = { 0 };
++	/* Only initialize if not inited */
++	if (!g_cg_ns[sub].mnt_point && (rc = _cgroup_init(sub)))
++		return NULL;
++	limits = xmalloc(sizeof(*limits));
++	cgroup_init_limits(limits);
++
+
+ 	switch (sub) {
+ 	case CG_TRACK:
+@@ -925,6 +965,10 @@ extern cgroup_limits_t *cgroup_p_constrain_get(cgroup_ctl_type_t sub,
+ 			goto fail;
+ 		break;
+ 	case CG_MEMORY:
++		tmp_cg.path = xstrdup(int_cg[sub][level].path);
++		_get_mem_recursive(&tmp_cg, limits);
++		xfree(tmp_cg.path);
++		break;
+ 	case CG_DEVICES:
+ 		break;
+ 	default:
+@@ -953,6 +997,11 @@ extern int cgroup_p_constrain_set(cgroup_ctl_type_t sub, cgroup_level_t level,
+ 	case CG_TRACK:
+ 		break;
+ 	case CG_CPUS:
++		/* Do not try to set the cpuset limits of slurmd in this case */
++		if ((level == CG_LEVEL_SYSTEM) &&
++		    (slurm_conf.task_plugin_param & SLURMD_SPEC_OVERRIDE))
++			break;
++
+ 		if (level == CG_LEVEL_SYSTEM ||
+ 		    level == CG_LEVEL_USER ||
+ 		    level == CG_LEVEL_JOB ||
+@@ -975,6 +1024,10 @@ extern int cgroup_p_constrain_set(cgroup_ctl_type_t sub, cgroup_level_t level,
+ 		}
+ 		break;
+ 	case CG_MEMORY:
++		if ((level == CG_LEVEL_SYSTEM) &&
++		    (slurm_conf.task_plugin_param & SLURMD_SPEC_OVERRIDE))
++			break;
++
+ 		if ((level == CG_LEVEL_JOB) &&
+ 		    (limits->swappiness != NO_VAL64)) {
+ 			rc = common_cgroup_set_uint64_param(&int_cg[sub][level],
+diff --git a/src/plugins/jobacct_gather/cgroup/jobacct_gather_cgroup.c b/src/plugins/jobacct_gather/cgroup/jobacct_gather_cgroup.c
+index 8e5b87e641..9486edce61 100644
+--- a/src/plugins/jobacct_gather/cgroup/jobacct_gather_cgroup.c
++++ b/src/plugins/jobacct_gather/cgroup/jobacct_gather_cgroup.c
+@@ -48,7 +48,6 @@
+ #include "src/common/xstring.h"
+ #include "src/interfaces/cgroup.h"
+ #include "src/interfaces/proctrack.h"
+-#include "src/slurmd/common/xcpuinfo.h"
+ #include "src/slurmd/slurmd/slurmd.h"
+ #include "../common/common_jag.h"
+
+@@ -171,18 +170,12 @@ extern int init (void)
+ 	if (running_in_slurmstepd()) {
+ 		jag_common_init(cgroup_g_get_acct_units());
+
+-		if (xcpuinfo_init() != SLURM_SUCCESS) {
+-			return SLURM_ERROR;
+-		}
+-
+ 		/* Initialize the controllers which we want accounting for. */
+ 		if (cgroup_g_initialize(CG_MEMORY) != SLURM_SUCCESS) {
+-			xcpuinfo_fini();
+ 			return SLURM_ERROR;
+ 		}
+
+ 		if (cgroup_g_initialize(CG_CPUACCT) != SLURM_SUCCESS) {
+-			xcpuinfo_fini();
+ 			return SLURM_ERROR;
+ 		}
+ 	}
+diff --git a/src/plugins/proctrack/cgroup/proctrack_cgroup.c b/src/plugins/proctrack/cgroup/proctrack_cgroup.c
+index b1573a9fad..0966032b26 100644
+--- a/src/plugins/proctrack/cgroup/proctrack_cgroup.c
++++ b/src/plugins/proctrack/cgroup/proctrack_cgroup.c
+@@ -50,7 +50,6 @@
+ #include "src/common/xstring.h"
+ #include "src/interfaces/cgroup.h"
+ #include "src/common/read_config.h"
+-#include "src/slurmd/common/xcpuinfo.h"
+ #include "src/slurmd/slurmd/slurmd.h"
+ #include "src/slurmd/slurmstepd/slurmstepd_job.h"
+
+@@ -132,14 +131,8 @@ _slurm_cgroup_is_pid_a_slurm_task(uint64_t id, pid_t pid)
+  */
+ extern int init (void)
+ {
+-	/* initialize cpuinfo internal data */
+-	if (xcpuinfo_init() != SLURM_SUCCESS) {
+-		return SLURM_ERROR;
+-	}
+-
+ 	/* initialize cgroup internal data */
+ 	if (cgroup_g_initialize(CG_TRACK) != SLURM_SUCCESS) {
+-		xcpuinfo_fini();
+ 		return SLURM_ERROR;
+ 	}
+
+@@ -148,7 +141,6 @@ extern int init (void)
+
+ extern int fini (void)
+ {
+-	xcpuinfo_fini();
+ 	return SLURM_SUCCESS;
+ }
+
+diff --git a/src/plugins/task/cgroup/task_cgroup_devices.c b/src/plugins/task/cgroup/task_cgroup_devices.c
+index b8ecfa6588..1384592bf7 100644
+--- a/src/plugins/task/cgroup/task_cgroup_devices.c
++++ b/src/plugins/task/cgroup/task_cgroup_devices.c
+@@ -50,7 +50,6 @@
+ #include "src/common/xstring.h"
+ #include "src/interfaces/cgroup.h"
+ #include "src/interfaces/gres.h"
+-#include "src/slurmd/common/xcpuinfo.h"
+ #include "src/slurmd/slurmd/slurmd.h"
+ #include "src/slurmd/slurmstepd/slurmstepd_job.h"
+
+@@ -112,37 +111,17 @@ static int _handle_device_access(void *x, void *arg)
+
+ extern int task_cgroup_devices_init(void)
+ {
+-	uint16_t cpunum;
+-
+-	/* initialize cpuinfo internal data */
+-	if (xcpuinfo_init() != SLURM_SUCCESS)
+-		return SLURM_ERROR;
+-
+-	if (get_procs(&cpunum) != 0) {
+-		error("unable to get a number of CPU");
+-		goto error;
+-	}
+-
+ 	if (cgroup_g_initialize(CG_DEVICES) != SLURM_SUCCESS) {
+ 		error("unable to create devices namespace");
+-		goto error;
++		return SLURM_ERROR;
+ 	}
+
+ 	return SLURM_SUCCESS;
+-
+-error:
+-	xcpuinfo_fini();
+-	return SLURM_ERROR;
+ }
+
+ extern int task_cgroup_devices_fini(void)
+ {
+-	int rc;
+-
+-	rc = cgroup_g_step_destroy(CG_DEVICES);
+-	xcpuinfo_fini();
+-
+-	return rc;
++	return cgroup_g_step_destroy(CG_DEVICES);
+ }
+
+ extern int task_cgroup_devices_create(stepd_step_rec_t *step)
+diff --git a/src/slurmctld/node_mgr.c b/src/slurmctld/node_mgr.c
+index d59343a041..09cf513934 100644
+--- a/src/slurmctld/node_mgr.c
++++ b/src/slurmctld/node_mgr.c
+@@ -3306,9 +3306,12 @@ extern int validate_node_specs(slurm_msg_t *slurm_msg, bool *newly_up)
+
+ 		if (build_node_spec_bitmap(node_ptr) != SLURM_SUCCESS)
+ 			error_code = EINVAL;
+-		else if (!node_spec_bitmap_old ||
+-			 !bit_equal(node_spec_bitmap_old,
+-				    node_ptr->node_spec_bitmap)) {
++		else if (!(slurm_conf.task_plugin_param &
++			   SLURMD_SPEC_OVERRIDE) &&
++			 (!node_spec_bitmap_old ||
++			  !bit_equal(node_spec_bitmap_old,
++				     node_ptr->node_spec_bitmap))) {
++
+ 			debug("Node %s has different spec CPUs than expected (%s, %s)",
+ 			      reg_msg->node_name, cpu_spec_list_old,
+ 			      node_ptr->cpu_spec_list);
+@@ -3317,6 +3320,21 @@ extern int validate_node_specs(slurm_msg_t *slurm_msg, bool *newly_up)
+ 				xstrcat(reason_down, ", ");
+ 			xstrcat(reason_down, "CoreSpec differ");
+ 		}
++
++		/* Regenerate core spec count and effective cpus */
++		if (node_ptr->cpu_spec_list &&
++		    (slurm_conf.task_plugin_param & SLURMD_SPEC_OVERRIDE)) {
++			if (node_ptr->cpu_spec_list) {
++				build_node_spec_bitmap(node_ptr);
++				node_conf_convert_cpu_spec_list(node_ptr);
++			} else if (node_ptr->core_spec_cnt) {
++				node_conf_select_spec_cores(node_ptr);
++			}
++			node_ptr->cpus_efctv =
++				node_ptr->cpus -
++				(node_ptr->core_spec_cnt * node_ptr->tpc);
++		}
++
+ 		xfree(cpu_spec_list_old);
+ 		FREE_NULL_BITMAP(node_spec_bitmap_old);
+ 	}
+diff --git a/src/slurmd/common/xcpuinfo.c b/src/slurmd/common/xcpuinfo.c
+index 94ee8218a2..c970828918 100644
+--- a/src/slurmd/common/xcpuinfo.c
++++ b/src/slurmd/common/xcpuinfo.c
+@@ -64,6 +64,7 @@
+ #include "xcpuinfo.h"
+
+ #define _DEBUG 0
++#define MAX_CPUSET_STR 2048
+ #define _MAX_SOCKET_INX 1024
+
+ #if !defined(HAVE_HWLOC)
+@@ -75,17 +76,14 @@ static int _chk_cpuinfo_str(char *buffer, char *keyword, char **valptr);
+ static int _chk_cpuinfo_uint32(char *buffer, char *keyword, uint32_t *val);
+ #endif
+
+-static int _range_to_map(char* range, uint16_t *map, uint16_t map_size,
+-			 int add_threads);
++#if HWLOC_API_VERSION > 0x00020401
++/* Contains a bitmap of all the cpus of the node, but only p-cores are set. */
++static hwloc_bitmap_t cpuset_tot = NULL;
++#endif
+
+-bool     initialized = false;
+-uint16_t procs, boards, sockets, cores, threads=1;
+-uint16_t block_map_size;
+-uint16_t *block_map, *block_map_inv;
++static char *restricted_cpus_as_mac = NULL;
+ extern slurmd_conf_t *conf;
+
+-static bool refresh_hwloc = false;
+-
+ /*
+  * get_procs - Return the count of procs on this system
+  * Input: procs - buffer for the CPU count
+@@ -125,8 +123,6 @@ get_procs(uint16_t *procs)
+
+ #ifdef HAVE_HWLOC
+
+-static char *hwloc_xml_whole = NULL;
+-
+ #if _DEBUG
+ static void _hwloc_children(hwloc_topology_t topology, hwloc_obj_t obj,
+ 			    int depth)
+@@ -157,32 +153,53 @@ static int _core_child_count(hwloc_topology_t topology, hwloc_obj_t obj)
+ 	return count;
+ }
+
+-static inline int _internal_hwloc_topology_export_xml(
+-	hwloc_topology_t topology, const char *hwloc_xml)
+-{
+-#if HWLOC_API_VERSION >= 0x00020000
+-	return hwloc_topology_export_xml(topology, hwloc_xml, 0);
+-#else
+-	return hwloc_topology_export_xml(topology, hwloc_xml);
+-#endif
+-}
+-
++/*
++* This needs to run before _remove_ecores() as the call to
++* hwloc_topology_restrict() will change the view.
++*
++* There appears to be a bug in HWLOC 2.x where the IntelCore list
++* is restricted by the cgroup cpuset.
++*/
+ static void _check_full_access(hwloc_topology_t *topology)
+ {
+ 	hwloc_const_bitmap_t complete, allowed;
++	hwloc_bitmap_t restricted_cpus_mask;
+
+ 	complete = hwloc_topology_get_complete_cpuset(*topology);
+ 	allowed = hwloc_topology_get_allowed_cpuset(*topology);
+
+-	if (!hwloc_bitmap_isequal(complete, allowed))
+-		warning("restricted to a subset of cpus");
++	if (!hwloc_bitmap_isequal(complete, allowed)) {
++		/*
++		 * Get the cpus that are not set in both bitmaps and which
++		 * represent the cpus that slurm will not be able to run on,
++		 * a.k.a. CpuSpecList (without SlurmdOffSpec).
++		 */
++		restricted_cpus_mask = hwloc_bitmap_alloc();
++		hwloc_bitmap_andnot(restricted_cpus_mask, complete, allowed);
++		restricted_cpus_as_mac = xmalloc(MAX_CPUSET_STR);
++
++		/* And convert them into a string*/
++		hwloc_bitmap_list_snprintf(restricted_cpus_as_mac,
++					   MAX_CPUSET_STR,
++					   restricted_cpus_mask);
++		hwloc_bitmap_free(restricted_cpus_mask);
++
++		warning("%s: subset of restricted cpus (not available for jobs): %s",
++			__func__, restricted_cpus_as_mac);
++
++		/* We don't need this any further */
++		if (!(slurm_conf.task_plugin_param & SLURMD_SPEC_OVERRIDE))
++			xfree(restricted_cpus_as_mac);
++	} else {
++		debug2("%s: got full access to the cpuset topology", __func__);
++	}
+ }
+
+ static void _remove_ecores(hwloc_topology_t *topology)
+ {
+ #if HWLOC_API_VERSION > 0x00020401
+ 	int type_cnt;
+-	hwloc_bitmap_t cpuset, cpuset_tot = NULL;
++	hwloc_bitmap_t cpuset;
+ 	char *pcore_freq = NULL;
+ 	bool found = false;
+
+@@ -256,6 +273,7 @@ static void _remove_ecores(hwloc_topology_t *topology)
+ 	if (!found) {
+ 		hwloc_bitmap_free(cpuset);
+ 		hwloc_bitmap_free(cpuset_tot);
++		cpuset_tot = NULL;
+ 		return;
+ 	}
+
+@@ -281,105 +299,50 @@ static void _remove_ecores(hwloc_topology_t *topology)
+ 	}
+
+ 	hwloc_topology_restrict(*topology, cpuset_tot, 0);
+-	hwloc_bitmap_free(cpuset_tot);
+ 	hwloc_bitmap_free(cpuset);
+ #endif
+ }
+
+ /* read or load topology and write if needed
+  * init and destroy topology must be outside this function */
+-extern int xcpuinfo_hwloc_topo_load(
+-	void *topology_in, char *topo_file, bool full)
++static int xcpuinfo_hwloc_topo_load(hwloc_topology_t *topology)
+ {
+-	int ret = SLURM_SUCCESS;
+-	struct stat buf;
+-	hwloc_topology_t *topology = topology_in;
+-	hwloc_topology_t tmp_topo;
+-	static bool first_full = true;
+-	bool check_file = true;
+-
+-	xassert(topo_file);
+-
+-	if (!topology_in) {
+-		topology = &tmp_topo;
+-		goto handle_write;
+-	}
+-
+-	if (full && first_full) {
+-		/* Always regenerate file on slurmd startup */
+-		if (refresh_hwloc)
+-			check_file = false;
+-		first_full = false;
+-	}
++	xassert(topology);
+
+-	if (check_file && !stat(topo_file, &buf)) {
+-		debug2("%s: xml file (%s) found", __func__, topo_file);
+-		if (hwloc_topology_set_xml(*topology, topo_file))
+-			error("%s: hwloc_topology_set_xml() failed (%s)",
+-			      __func__, topo_file);
+-		else if (hwloc_topology_load(*topology))
+-			error("%s: hwloc_topology_load() failed (%s)",
+-			      __func__, topo_file);
+-		else
+-			return ret;
+-	}
+-
+-	hwloc_topology_destroy(*topology);
+-
+-handle_write:
++	/* parse all system */
++	hwloc_topology_set_flags(*topology, HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM);
+
+-	hwloc_topology_init(topology);
+-
+-	if (full) {
+-		/* parse all system */
+-		hwloc_topology_set_flags(*topology,
+-					 HWLOC_TOPOLOGY_FLAG_WHOLE_SYSTEM);
+-
+-		/* ignores cache, misc */
++	/* ignores cache, misc */
+ #if HWLOC_API_VERSION < 0x00020000
+-		hwloc_topology_ignore_type (*topology, HWLOC_OBJ_CACHE);
+-		hwloc_topology_ignore_type (*topology, HWLOC_OBJ_MISC);
++	hwloc_topology_ignore_type(*topology, HWLOC_OBJ_CACHE);
++	hwloc_topology_ignore_type(*topology, HWLOC_OBJ_MISC);
+ #else
+-		hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L1CACHE,
+-					       HWLOC_TYPE_FILTER_KEEP_NONE);
+-		hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L2CACHE,
+-					       HWLOC_TYPE_FILTER_KEEP_NONE);
+-		/* need to preserve HWLOC_OBJ_L3CACHE for l3cache_as_socket */
+-		hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L4CACHE,
+-					       HWLOC_TYPE_FILTER_KEEP_NONE);
+-		hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L5CACHE,
+-					       HWLOC_TYPE_FILTER_KEEP_NONE);
+-		hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_MISC,
+-					       HWLOC_TYPE_FILTER_KEEP_NONE);
++	hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L1CACHE,
++				       HWLOC_TYPE_FILTER_KEEP_NONE);
++	hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L2CACHE,
++				       HWLOC_TYPE_FILTER_KEEP_NONE);
++	/* need to preserve HWLOC_OBJ_L3CACHE for l3cache_as_socket */
++	hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L4CACHE,
++				       HWLOC_TYPE_FILTER_KEEP_NONE);
++	hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_L5CACHE,
++				       HWLOC_TYPE_FILTER_KEEP_NONE);
++	hwloc_topology_set_type_filter(*topology, HWLOC_OBJ_MISC,
++				       HWLOC_TYPE_FILTER_KEEP_NONE);
+ #endif
+-	}
+
+ 	/* load topology */
+ 	debug2("hwloc_topology_load");
+ 	if (hwloc_topology_load(*topology)) {
+ 		/* error in load hardware topology */
+ 		debug("hwloc_topology_load() failed.");
+-		ret = SLURM_ERROR;
+-		goto end_it;
++		return SLURM_ERROR;
+ 	}
+
+ 	_check_full_access(topology);
+
+ 	_remove_ecores(topology);
+
+-	if (!conf->def_config) {
+-		debug2("hwloc_topology_export_xml");
+-		if (_internal_hwloc_topology_export_xml(*topology, topo_file)) {
+-			/* error in export hardware topology */
+-			error("%s: failed (load will be required after read failures).", __func__);
+-		}
+-	}
+-
+-end_it:
+-	if (!topology_in)
+-		hwloc_topology_destroy(tmp_topo);
+-
+-	return ret;
++	return SLURM_SUCCESS;
+ }
+
+ /*
+@@ -421,13 +384,8 @@ extern int xcpuinfo_hwloc_topo_get(
+ 		return 1;
+ 	}
+
+-	if (!hwloc_xml_whole)
+-		hwloc_xml_whole = xstrdup_printf("%s/hwloc_topo_whole.xml",
+-						 conf->spooldir);
+-	if (xcpuinfo_hwloc_topo_load(&topology, hwloc_xml_whole, true)
+-	    == SLURM_ERROR) {
++	if (xcpuinfo_hwloc_topo_load(&topology) != SLURM_SUCCESS) {
+ 		hwloc_topology_destroy(topology);
+-		xfree(hwloc_xml_whole);
+ 		return 2;
+ 	}
+ #if _DEBUG
+@@ -889,12 +847,6 @@ extern int xcpuinfo_hwloc_topo_get(
+ 	return retval;
+ }
+
+-extern int xcpuinfo_hwloc_topo_load(
+-	void *topology_in, char *topo_file, bool full)
+-{
+-	return SLURM_SUCCESS;
+-}
+-
+ /* _chk_cpuinfo_str
+  *	check a line of cpuinfo data (buffer) for a keyword.  If it
+  *	exists, return the string value for that keyword in *valptr.
+@@ -939,7 +891,7 @@ static int _chk_cpuinfo_uint32(char *buffer, char *keyword, uint32_t *val)
+  * _compute_block_map - Compute abstract->machine block mapping (and inverse)
+  *   allows computation of CPU ID masks for an abstract block distribution
+  *   of logical processors which can then be mapped the IDs used in the
+- *   actual machine processor ID ordering (which can be BIOS/OS dependendent)
++ *   actual machine processor ID ordering (which can be BIOS/OS dependent)
+  * Input:  numproc - number of processors on the system
+  *	   cpu - array of cpuinfo (file static for qsort/_compare_cpus)
+  * Output: block_map, block_map_inv - asbtract->physical block distribution map
+@@ -1096,53 +1048,6 @@ static int _compute_block_map(uint16_t numproc,
+ }
+ #endif
+
+-int
+-xcpuinfo_init(void)
+-{
+-	if ( initialized )
+-		return SLURM_SUCCESS;
+-
+-	if (xcpuinfo_hwloc_topo_get(&procs,&boards,&sockets,&cores,&threads,
+-				    &block_map_size,&block_map,&block_map_inv))
+-		return SLURM_ERROR;
+-
+-	initialized = true ;
+-
+-	return SLURM_SUCCESS;
+-}
+-
+-extern void xcpuinfo_refresh_hwloc(bool refresh)
+-{
+-	refresh_hwloc = refresh;
+-}
+-
+-int
+-xcpuinfo_fini(void)
+-{
+-	if ( ! initialized )
+-		return SLURM_SUCCESS;
+-
+-	initialized = false ;
+-	procs = sockets = cores = threads = 0;
+-	block_map_size = 0;
+-	xfree(block_map);
+-	xfree(block_map_inv);
+-#ifdef HAVE_HWLOC
+-	if (hwloc_xml_whole) {
+-		/*
+-		 * When a slurmd is taking over the place of the next
+-		 * slurmd it will have already made this file.  So don't
+-		 * remove it or it will remove it for the new slurmd.
+-		 * If this happens on the slurmstepd we don't want to remove it
+-		 * to begin with.
+-		 */
+-		/* (void)remove(hwloc_xml_whole); */
+-		xfree(hwloc_xml_whole);
+-	}
+-#endif
+-	return SLURM_SUCCESS;
+-}
+-
+ /*
+  * Convert an abstract core range string into a machine-specific CPU range
+  * string. Abstract id to machine id conversion is done using block_map.
+@@ -1217,6 +1122,47 @@ end_it:
+ 	return rc;
+ }
+
++static char *_remove_ecores_range(const char *orig_range)
++{
++	char *pcores_range = NULL;
++#if HWLOC_API_VERSION > 0x00020401
++	hwloc_bitmap_t r = NULL, rout = NULL;
++
++	if (slurm_conf.conf_flags & CONF_FLAG_ECORE)
++		return NULL;
++
++	/*
++	 * This comes from _remove_ecores() and contains a bitmap of performance
++	 * cores.
++	 */
++	if (!cpuset_tot)
++		return NULL;
++
++	r = hwloc_bitmap_alloc();
++
++	if (hwloc_bitmap_list_sscanf(r, orig_range)) {
++		error("Cannot convert cpuset range %s into a hwloc bitmap",
++		      orig_range);
++		goto end_it;
++	}
++
++	rout = hwloc_bitmap_alloc();
++	hwloc_bitmap_and(rout, r, cpuset_tot);
++	pcores_range = xmalloc(MAX_CPUSET_STR);
++	hwloc_bitmap_list_snprintf(pcores_range, MAX_CPUSET_STR, rout);
++
++	debug2("Reduced original range from %s to %s to only include p-cores",
++	       orig_range, pcores_range);
++end_it:
++	hwloc_bitmap_free(r);
++	hwloc_bitmap_free(rout);
++	/* We do not need the cpuset_tot anymore */
++	hwloc_bitmap_free(cpuset_tot);
++	cpuset_tot = NULL;
++#endif
++	return pcores_range;
++}
++
+ /*
+  * Convert a machine-specific CPU range string into an abstract core range
+  * string. Machine id to abstract id conversion is done using block_map_inv.
+@@ -1313,91 +1259,57 @@ end_it:
+ 	return rc;
+ }
+
+-int
+-xcpuinfo_abs_to_map(char* lrange,uint16_t **map,uint16_t *map_size)
++extern char *xcpuinfo_get_cpuspec(void)
+ {
+-	*map_size = block_map_size;
+-	*map = xcalloc(block_map_size, sizeof(uint16_t));
+-	/* abstract range does not already include the hyperthreads */
+-	return _range_to_map(lrange,*map,*map_size,1);
+-}
++	char *res_abs_cores = NULL;
++	bitstr_t *res_core_bitmap = NULL;
++	bitstr_t *res_cpu_bitmap = NULL;
++	char *restricted_cpus_as_abs = NULL;
++	char *pcores_range = NULL;
++
++	if (!restricted_cpus_as_mac)
++		return NULL;
++
++	/* We need to remove the e-cores to compute the cpuspec list */
++	pcores_range = _remove_ecores_range(restricted_cpus_as_mac);
++	if (pcores_range) {
++		xcpuinfo_mac_to_abs(pcores_range, &restricted_cpus_as_abs);
++		xfree(pcores_range);
++	} else {
++		xcpuinfo_mac_to_abs(restricted_cpus_as_mac,
++				    &restricted_cpus_as_abs);
++	}
+
+-/*
+- * set to 1 each element of already allocated map of size
+- * map_size if they are present in the input range
+- * if add_thread does not equal 0, the input range is a treated
+- * as a core range, and it will be mapped to an array of uint16_t
+- * that will include all the hyperthreads associated to the cores.
+- */
+-static int
+-_range_to_map(char* range,uint16_t *map,uint16_t map_size,int add_threads)
+-{
+-	int bad_nb=0;
+-	int num_fl=0;
+-	int con_fl=0;
+-	int last=0;
+-
+-	char *dup;
+-	char *p;
+-	char *s=NULL;
+-
+-	uint16_t start=0,end=0,i;
+-
+-	/* duplicate input range */
+-	dup = xstrdup(range);
+-	p = dup;
+-	while ( ! last ) {
+-		if ( isdigit(*p) ) {
+-			if ( !num_fl ) {
+-				num_fl++;
+-				s=p;
+-			}
+-		}
+-		else if ( *p == '-' ) {
+-			if ( s && num_fl ) {
+-				*p = '\0';
+-				start = (uint16_t) atoi(s);
+-				con_fl=1;
+-				num_fl=0;
+-				s=NULL;
+-			}
+-		}
+-		else if ( *p == ',' || *p == '\0') {
+-			if ( *p == '\0' )
+-				last = 1;
+-			if ( s && num_fl ) {
+-				*p = '\0';
+-				end = (uint16_t) atoi(s);
+-				if ( !con_fl )
+-					start = end ;
+-				con_fl=2;
+-				num_fl=0;
+-				s=NULL;
+-			}
+-		}
+-		else {
+-			bad_nb++;
+-			break;
+-		}
+-		if ( con_fl == 2 ) {
+-			if ( add_threads ) {
+-				start = start * threads;
+-				end = (end+1)*threads - 1 ;
+-			}
+-			for( i = start ; i <= end && i < map_size ; i++) {
+-				map[i]=1;
+-			}
+-			con_fl=0;
++	debug2("%s: restricted cpus as machine: %s",
++	       __func__, restricted_cpus_as_mac);
++	debug2("%s: restricted cpus as abstract: %s",
++	       __func__, restricted_cpus_as_abs);
++
++	if (!restricted_cpus_as_abs || !restricted_cpus_as_abs[0])
++		goto empty_end;
++
++	res_core_bitmap = bit_alloc(MAX_CPU_CNT);
++	res_cpu_bitmap = bit_alloc(MAX_CPU_CNT);
++	bit_unfmt(res_core_bitmap, restricted_cpus_as_abs);
++
++	for (int core_off = 0; core_off < conf->cores; core_off++) {
++		if (!bit_test(res_core_bitmap, core_off))
++			continue;
++		for (int thread_off = 0; thread_off < conf->threads;
++		     thread_off++) {
++			int thread_inx =
++				(core_off * (int) conf->threads) + thread_off;
++			bit_set(res_cpu_bitmap, thread_inx);
+ 		}
+-		p++;
+ 	}
+
+-	xfree(dup);
++	res_abs_cores = xmalloc(MAX_CPU_CNT);
++	bit_fmt(res_abs_cores, MAX_CPU_CNT, res_cpu_bitmap);
+
+-	if ( bad_nb > 0 ) {
+-		/* bad format for input range */
+-		return SLURM_ERROR;
+-	}
++	FREE_NULL_BITMAP(res_core_bitmap);
++	FREE_NULL_BITMAP(res_cpu_bitmap);
+
+-	return SLURM_SUCCESS;
++empty_end:
++	xfree(restricted_cpus_as_abs);
++	return res_abs_cores;
+ }
+diff --git a/src/slurmd/common/xcpuinfo.h b/src/slurmd/common/xcpuinfo.h
+index eaca7846fc..b57dcd7b39 100644
+--- a/src/slurmd/common/xcpuinfo.h
++++ b/src/slurmd/common/xcpuinfo.h
+@@ -40,10 +40,6 @@
+
+ extern int get_procs(uint16_t *procs);
+
+-/* read or load topology and write if needed
+- * init and destroy topology must be outside this function */
+-extern int xcpuinfo_hwloc_topo_load(
+-	void *topology_in, char *topo_file, bool full);
+ /*
+  * Get the node's cpu info.
+  *
+@@ -64,26 +60,6 @@ extern int xcpuinfo_hwloc_topo_get(
+ 	uint16_t *block_map_size,
+ 	uint16_t **block_map, uint16_t **block_map_inv);
+
+-/*
+- * Initialize xcpuinfo internal data
+- *
+- * returned values:
+- *  - SLURM_ERROR
+- *  - SLURM_SUCCESS
+- */
+-int xcpuinfo_init(void);
+-
+-extern void xcpuinfo_refresh_hwloc(bool refresh);
+-
+-/*
+- * Destroy xcpuinfo internal data
+- *
+- * returned values:
+- *  - SLURM_ERROR
+- *  - SLURM_SUCCESS
+- */
+-int xcpuinfo_fini(void);
+-
+ /*
+  * Convert an abstract core range string into a machine-specific CPU range
+  * string. Abstract id to machine id conversion is done using block_map.
+@@ -112,18 +88,11 @@ int xcpuinfo_abs_to_mac(char *lrange,char **prange);
+ int xcpuinfo_mac_to_abs(char *in_range, char **out_range);
+
+ /*
+- * Use xcpuinfo internal data to convert an abstract range
+- * of cores (slurm internal format) into the equivalent
+- * map of cores
+- *
+- * range is of the form 0-1,4-5
+- *
+- * on success, the output map must be freed using xfree
++ * Return an abstract CpuSpecList in string format generated from the allowed
++ * cpus in the node.
+  *
+- * returned values:
+- *  - SLURM_ERROR
+- *  - SLURM_SUCCESS
++ * RET: A string representing the allowed abstract cpus, NULL if error.
+  */
+-int xcpuinfo_abs_to_map(char* lrange,uint16_t **map,uint16_t *map_size);
++extern char *xcpuinfo_get_cpuspec(void);
+
+ #endif
+diff --git a/src/slurmd/slurmd/req.c b/src/slurmd/slurmd/req.c
+index 67f4572c5b..f58a094223 100644
+--- a/src/slurmd/slurmd/req.c
++++ b/src/slurmd/slurmd/req.c
+@@ -118,7 +118,6 @@
+ #define RETRY_DELAY 15		/* retry every 15 seconds */
+ #define MAX_RETRY   240		/* retry 240 times (one hour max) */
+
+-#define MAX_CPU_CNT 1024
+ #define MAX_NUMA_CNT 128
+
+ typedef struct {
+diff --git a/src/slurmd/slurmd/slurmd.c b/src/slurmd/slurmd/slurmd.c
+index 174d8000cd..151ff95234 100644
+--- a/src/slurmd/slurmd/slurmd.c
++++ b/src/slurmd/slurmd/slurmd.c
+@@ -1060,6 +1060,46 @@ _fill_registration_msg(slurm_node_registration_status_msg_t *msg)
+ 	return;
+ }
+
++static void _spec_override(uint64_t phys_mem)
++{
++	cgroup_limits_t *slurmd_limits;
++	char *tmp_str;
++
++	/*
++	 * CoreSpec overwrite can only be done under cons_tres and with
++	 * task/cgroup. This is guaranteed by SlurmdSpecOverride parameter.
++	 */
++	if (!(slurm_conf.task_plugin_param & SLURMD_SPEC_OVERRIDE))
++		return;
++
++	tmp_str = xcpuinfo_get_cpuspec();
++	if (tmp_str) {
++		info("Overriding CpuSpecList from %s to %s",
++		     conf->cpu_spec_list, tmp_str);
++		xfree(conf->cpu_spec_list);
++		conf->cpu_spec_list = tmp_str;
++		slurm_conf.task_plugin_param &= ~SLURMD_OFF_SPEC;
++	}
++
++	/*
++	 * We should use CG_LEVEL_ROOT but for compatibility with
++	 * cgroup/v1 we need to use CG_LEVEL_SYSTEM
++	 */
++	slurmd_limits = cgroup_g_constrain_get(CG_MEMORY, CG_LEVEL_SLURM);
++
++	if (!slurmd_limits || (slurmd_limits->limit_in_bytes == NO_VAL64)) {
++		info("No memory limits detected for this system, assuming the available memory equals the physical memory");
++	} else {
++		slurmd_limits->limit_in_bytes /= 1024 * 1024;
++		conf->mem_spec_limit = phys_mem - slurmd_limits->limit_in_bytes;
++		info("Detected real memory of %luM but constrained to %luM, setting MemSpecLimit=%luM",
++		     phys_mem, slurmd_limits->limit_in_bytes,
++		     conf->mem_spec_limit);
++	}
++
++	cgroup_free_limits(slurmd_limits);
++}
++
+ /*
+  * Read the slurm configuration file (slurm.conf) and substitute some
+  * values into the slurmd configuration in preference of the defaults.
+@@ -1080,9 +1120,6 @@ _read_config(void)
+ 	slurm_mutex_lock(&conf->config_mutex);
+ 	cf = slurm_conf_lock();
+
+-	if (conf->conffile == NULL)
+-		conf->conffile = xstrdup(cf->slurm_conf);
+-
+ 	/*
+ 	 * Allow for Prolog and Epilog scripts to have non-absolute paths.
+ 	 * This is needed for configless to work with Prolog and Epilog.
+@@ -1112,22 +1149,6 @@ _read_config(void)
+ #endif
+
+ 	slurm_conf_unlock();
+-	/* node_name may already be set from a command line parameter */
+-	if (conf->node_name == NULL)
+-		conf->node_name = slurm_conf_get_nodename(conf->hostname);
+-
+-	/*
+-	 * If we didn't match the form of the hostname already stored in
+-	 * conf->hostname, check to see if we match any valid aliases
+-	 */
+-	if (conf->node_name == NULL)
+-		conf->node_name = slurm_conf_get_aliased_nodename();
+-
+-	if (conf->node_name == NULL)
+-		conf->node_name = slurm_conf_get_nodename("localhost");
+-
+-	if (!conf->node_name || conf->node_name[0] == '\0')
+-		fatal("Unable to determine this slurmd's NodeName");
+
+ 	if ((bcast_address = slurm_conf_get_bcast_address(conf->node_name))) {
+ 		if (xstrcasestr(slurm_conf.comm_params, "NoInAddrAny"))
+@@ -1135,12 +1156,6 @@ _read_config(void)
+ 		xfree(bcast_address);
+ 	}
+
+-	if (!conf->logfile)
+-		conf->logfile = slurm_conf_expand_slurmd_path(
+-			cf->slurmd_logfile,
+-			conf->node_name,
+-			conf->hostname);
+-
+ #ifndef HAVE_FRONT_END
+ 	if (!(node_ptr = find_node_record(conf->node_name))) {
+ 		error("Unable to find node record for %s",
+@@ -1167,16 +1182,6 @@ _read_config(void)
+ 	xfree(conf->block_map);
+ 	xfree(conf->block_map_inv);
+
+-	/*
+-	 * This must be reset before update_slurmd_logging(), otherwise the
+-	 * slurmstepd processes will not get the reconfigure request, and logs
+-	 * may be lost if the path changed or the log was rotated.
+-	 */
+-	_free_and_set(conf->spooldir,
+-		      slurm_conf_expand_slurmd_path(
+-			      cf->slurmd_spooldir,
+-			      conf->node_name,
+-			      conf->hostname));
+ 	/*
+ 	 * Only rebuild this if running configless, which is indicated by
+ 	 * the presence of a conf_cache value.
+@@ -1185,8 +1190,6 @@ _read_config(void)
+ 		_free_and_set(conf->conf_cache,
+ 			      xstrdup_printf("%s/conf-cache", conf->spooldir));
+
+-	update_slurmd_logging(LOG_LEVEL_END);
+-	update_stepd_logging(true);
+ 	_update_nice();
+
+ 	conf->actual_cpus = 0;
+@@ -1307,6 +1310,8 @@ _read_config(void)
+ 	}
+ #endif
+
++	_spec_override(node_ptr->real_memory);
++
+ #ifdef HAVE_FRONT_END
+ 	get_memory(&conf->conf_memory_size);
+ #else
+@@ -2391,22 +2396,6 @@ static void _dynamic_init(void)
+
+ 	slurm_mutex_lock(&conf->config_mutex);
+
+-	if ((conf->dynamic_type == DYN_NODE_FUTURE) && conf->node_name) {
+-		/*
+-		 * You can't specify a node name with dynamic future nodes,
+-		 * otherwise the slurmd will keep registering as a new dynamic
+-		 * future node because the node_name won't map to the hostname.
+-		 */
+-		fatal("Specifying a node name for dynamic future nodes is not supported.");
+-	}
+-
+-	/* Use -N name if specified. */
+-	if (!conf->node_name) {
+-		char hostname[HOST_NAME_MAX];
+-		if (!gethostname(hostname, HOST_NAME_MAX))
+-			conf->node_name = xstrdup(hostname);
+-	}
+-
+ 	xcpuinfo_hwloc_topo_get(&conf->actual_cpus,
+ 				&conf->actual_boards,
+ 				&conf->actual_sockets,
+@@ -2422,6 +2411,8 @@ static void _dynamic_init(void)
+ 	conf->threads = conf->actual_threads;
+ 	get_memory(&conf->physical_memory_size);
+
++	_spec_override(conf->physical_memory_size);
++
+ 	switch (conf->dynamic_type) {
+ 	case DYN_NODE_FUTURE:
+ 		/*
+@@ -2489,6 +2480,73 @@ static void _dynamic_init(void)
+ 	slurm_mutex_unlock(&conf->config_mutex);
+ }
+
++static void _log_setup()
++{
++	slurm_conf_t *cf = NULL;
++
++	if ((conf->dynamic_type == DYN_NODE_FUTURE) && conf->node_name) {
++		/*
++		 * You can't specify a node name with dynamic future nodes,
++		 * otherwise the slurmd will keep registering as a new dynamic
++		 * future node because the node_name won't map to the hostname.
++		 */
++		fatal("Specifying a node name for dynamic future nodes is not supported.");
++	}
++
++	/* Use -N name if specified. */
++	if (conf->dynamic_type && !conf->node_name) {
++		char hostname[HOST_NAME_MAX];
++		if (!gethostname(hostname, HOST_NAME_MAX))
++			conf->node_name = xstrdup(hostname);
++	}
++
++	/* node_name may already be set from a command line parameter */
++	if (conf->node_name == NULL)
++		conf->node_name = slurm_conf_get_nodename(conf->hostname);
++
++	/*
++	 * If we didn't match the form of the hostname already stored in
++	 * conf->hostname, check to see if we match any valid aliases
++	 */
++	if (conf->node_name == NULL)
++		conf->node_name = slurm_conf_get_aliased_nodename();
++
++	if (conf->node_name == NULL)
++		conf->node_name = slurm_conf_get_nodename("localhost");
++
++	if (!conf->node_name || (conf->node_name[0] == '\0'))
++		fatal("Unable to determine this slurmd's NodeName");
++
++	slurm_mutex_lock(&conf->config_mutex);
++	cf = slurm_conf_lock();
++
++	if (conf->conffile == NULL)
++		conf->conffile = xstrdup(cf->slurm_conf);
++
++	if (!conf->logfile)
++		conf->logfile = slurm_conf_expand_slurmd_path(
++			cf->slurmd_logfile,
++			conf->node_name,
++			conf->hostname);
++
++	/*
++	 * This must be reset before update_slurmd_logging(), otherwise the
++	 * slurmstepd processes will not get the reconfigure request, and logs
++	 * may be lost if the path changed or the log was rotated.
++	 */
++	_free_and_set(conf->spooldir,
++		      slurm_conf_expand_slurmd_path(
++			      cf->slurmd_spooldir,
++			      conf->node_name,
++			      conf->hostname));
++
++	slurm_conf_unlock();
++	slurm_mutex_unlock(&conf->config_mutex);
++
++	update_slurmd_logging(LOG_LEVEL_END);
++	update_stepd_logging(true);
++}
++
+ static int
+ _slurmd_init(void)
+ {
+@@ -2512,6 +2570,9 @@ _slurmd_init(void)
+ 	slurm_conf_init(conf->conffile);
+ 	init_node_conf();
+
++	/* Setup logging previous to any plugin init or we will not get logs. */
++	_log_setup();
++
+ 	if (conf->print_gres)
+ 		slurm_conf.debug_flags = DEBUG_FLAG_GRES;
+ 	if (gres_init() != SLURM_SUCCESS)
+@@ -2528,13 +2589,17 @@ _slurmd_init(void)
+ 		log_flag(CGROUP, "cgroup conf was already initialized.");
+
+ 	/*
+-	 * If we are in the process of daemonizing ourselves, do not refresh
+-	 * the hwloc as the grandparent process have already done it. This
+-	 * is important as we're already constrained by cgroups in a specific
+-	 * cpuset, and hwloc does not return the correct e-cores vs p-cores
+-	 * kinds.
++	 * This will move the slurmd into its correct cgroup and reset its
++	 * constraints. Need to do before hwloc detection or it will detect
++	 * restrictions from incorrect cgroups.
++	 *
++	 * This needs to happen before _resource_spec_init() too.
++	 * 03e2318
+ 	 */
+-	xcpuinfo_refresh_hwloc(original);
++	if (cgroup_g_init() != SLURM_SUCCESS) {
++		error("Unable to initialize cgroup plugin");
++		return SLURM_ERROR;
++	}
+
+ 	/*
+ 	 * auth/slurm calls conmgr_init and we need to apply conmgr params
+@@ -2561,15 +2626,6 @@ _slurmd_init(void)
+ 	 * defaults and command line.
+ 	 */
+ 	_read_config();
+-	/*
+-	 * This needs to happen before _resource_spec_init where we will try to
+-	 * attach the slurmd pid to system cgroup, and after _read_config to
+-	 * have proper logging.
+-	 */
+-	if (cgroup_g_init() != SLURM_SUCCESS) {
+-		error("Unable to initialize cgroup plugin");
+-		return SLURM_ERROR;
+-	}
+
+ #ifndef HAVE_FRONT_END
+ 	if (!find_node_record(conf->node_name))
+@@ -2599,10 +2655,6 @@ _slurmd_init(void)
+ 		return SLURM_ERROR;
+ 	}
+
+-	/* Set up the hwloc whole system xml file */
+-	if (xcpuinfo_init() != SLURM_SUCCESS)
+-		return SLURM_ERROR;
+-
+ 	fini_job_cnt = MAX(conf->conf_cpus, conf->block_map_size);
+ 	fini_job_id = xmalloc(sizeof(uint32_t) * fini_job_cnt);
+ 	rc = _load_gres();
+@@ -2625,9 +2677,7 @@ _slurmd_init(void)
+ 	 */
+ 	cpu_freq_init(conf);
+
+-	/*
+-	 * If configured, apply resource specialization
+-	 */
++	/* Apply the configured CpuSpecList and MemSpecList */
+ 	_resource_spec_init();
+
+ 	_print_conf();
+@@ -2720,7 +2770,6 @@ _slurmd_fini(void)
+ 	acct_gather_conf_destroy();
+ 	fini_system_cgroup();
+ 	cgroup_g_fini();
+-	xcpuinfo_fini();
+ 	slurm_mutex_lock(&cached_features_mutex);
+ 	xfree(cached_features_avail);
+ 	xfree(cached_features_active);
+diff --git a/src/slurmd/slurmd/slurmd.h b/src/slurmd/slurmd/slurmd.h
+index 6a7b32413e..8970382c79 100644
+--- a/src/slurmd/slurmd/slurmd.h
++++ b/src/slurmd/slurmd/slurmd.h
+@@ -49,6 +49,8 @@
+ #include "src/common/slurm_protocol_api.h"
+ #include "src/interfaces/cred.h"
+
++#define MAX_CPU_CNT 1024
++
+ extern int devnull;
+ extern bool get_reg_resp;
+ extern bool refresh_cached_features;
+diff --git a/src/slurmd/slurmstepd/mgr.c b/src/slurmd/slurmstepd/mgr.c
+index 6167d4c994..043f80c09e 100644
+--- a/src/slurmd/slurmstepd/mgr.c
++++ b/src/slurmd/slurmstepd/mgr.c
+@@ -113,7 +113,6 @@
+ #include "src/slurmd/common/set_oomadj.h"
+ #include "src/slurmd/common/slurmd_cgroup.h"
+ #include "src/slurmd/common/slurmd_common.h"
+-#include "src/slurmd/common/xcpuinfo.h"
+
+ #include "src/slurmd/slurmd/slurmd.h"
+ #include "src/slurmd/slurmstepd/io.h"
+@@ -2170,12 +2169,6 @@ _fork_all_tasks(stepd_step_rec_t *step, bool *io_initialized)
+ 		return SLURM_ERROR;
+ 	}
+
+-	/*
+-	 * Create hwloc xml file here to avoid threading issues later.
+-	 * This has to be done after task_g_pre_setuid().
+-	 */
+-	xcpuinfo_hwloc_topo_load(NULL, conf->hwloc_xml, false);
+-
+ 	/*
+ 	 * Temporarily drop effective privileges, except for the euid.
+ 	 * We need to wait until after pam_setup() to drop euid.

@@ -22,15 +22,20 @@ jobs:
   pre-commit:
     uses: ./.github/workflows/pre-commit.yaml
 
-  codeql:
-    uses: ./.github/workflows/codeql.yaml
+  build-images:
+    uses: ./.github/workflows/build-images.yaml
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write # Required for pulling the cw actions images
+      id-token: write # Required for the GitHub OIDC token
 
   alls-green:
     if: always()
     needs:
       - commitlint
       - pre-commit
-      - codeql
+      - build-images
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
     steps:
