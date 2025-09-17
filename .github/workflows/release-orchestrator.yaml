@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+
+name: Release Orchestrator
+on:
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - "**"
+
+permissions:
+  contents: read
+  packages: read # Required for pulling the cw actions images
+
+jobs:
+  # Determine next release version to use in later steps, note need to handle skipping later bits better
+  get-version:
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-semantic-release:v1.8.0
+    outputs:
+      version: ${{ steps.get-next-version.outputs.version }}
+    permissions:
+      contents: write
+      packages: read # Required for pulling the cw actions images
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Get next version
+        id: get-next-version
+        uses: coreweave/actions/release/semantic-release@semantic-release-action-v1.15.0
+        with:
+          dry-run: true
+          config: .releaserc.yaml
+
+  # This is used to verify we actually have a tag from Semantic release to gate the rest
+  verify-version:
+    needs: get-version
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    if: ${{ ! startsWith(github.sha, needs.get-version.outputs.version) }}
+    steps:
+      - run: echo "Tag ${{ needs.get-version.outputs.version }}"
+
+  build-images:
+    needs: [verify-version]
+    uses: ./.github/workflows/build-images.yaml
+    secrets: inherit
+
+  release:
+    needs: [get-version, verify-version, build-images]
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-semantic-release:v1.8.0
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    permissions:
+      contents: write
+      packages: read # Required for pulling the cw actions images
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: Create release
+        id: release
+        uses: coreweave/actions/release/semantic-release@semantic-release-action-v1.15.0
+        with:
+          dry-run: false
+          config: .releaserc.yaml
