@@ -22,8 +22,7 @@ on:
 
 permissions:
   contents: read
-  packages: write # Required for pulling the cw actions images and writing cache images
-  id-token: write # Required for the GitHub OIDC token
+  packages: read # Required for pulling the cw actions images
 
 env:
   ## Registry vars
@@ -73,10 +72,17 @@ jobs:
     needs: parse-build-settings
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
+
     strategy:
       fail-fast: false
       matrix:
         build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.controller_matrix) }}
+
+    permissions:
+      contents: read  # required for accessing the repo contents
+      id-token: write # required for requesting JWT and OIDC tokens
+      packages: write # required for pulling the cw actions images and writing cache images
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -132,10 +138,17 @@ jobs:
     needs: parse-build-settings
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
+
     strategy:
       fail-fast: false
       matrix:
         build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.slurmd_cw_matrix) }}
+
+    permissions:
+      contents: read  # required for accessing the repo contents
+      id-token: write # required for requesting JWT and OIDC tokens
+      packages: write # required for pulling the cw actions images and writing cache images
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -194,9 +207,16 @@ jobs:
       - build-slurmd-cw-images
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
+
     outputs:
       built_images_json: ${{ steps.output-image-names.outputs.built_images_json }}
       images_to_copy: ${{ steps.output-image-names.outputs.images_to_copy }}
+
+    permissions:
+      contents: read  # required for accessing the repo contents
+      id-token: write # required for requesting JWT and OIDC tokens
+      packages: write # required for pulling the cw actions images and writing cache images
+
     steps:
       - name: Download controller based image names
         uses: actions/download-artifact@v4
