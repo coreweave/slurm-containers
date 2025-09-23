@@ -1,0 +1,106 @@
+# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+
+name: "Build Slurm Base and Extras Images for SUNK"
+description: "Composite workflow that builds base and extras Slurm images for SUNK."
+inputs:
+  context:
+    description: "A directory containing a Dockerfile which buildx will use to build your image."
+    required: true
+    default: ""
+  image-name:
+    description: "The target image name for the base image. Extras image will be tagged as <image-name>-extras."
+    required: true
+    default: ""
+  image-tag-suffix:
+    description: "Suffix to append to the image tag for both base and extras image."
+    required: false
+    default: ""
+  dockerfile:
+    description: "Filepath resolving to the Dockerfile to use. Extras image will be built from <dockerfile>.extras."
+    required: true
+    default: ""
+  doppler-token:
+    description: "The Doppler token to fetch the BuildKit client certs (e.g. secrets.ORG_BUILDKIT_CLIENT_TOKEN)."
+    required: true
+    default: ""
+  cloudsmith-repo-name:
+    description: "The name of the Cloudsmith repository to use."
+    required: true
+    default: ""
+  cloudsmith-service:
+    description: "The name of the Cloudsmith service account to use."
+    required: true
+    default: ""
+  github-token:
+    description: "The GitHub token to use for authentication."
+    required: true
+    default: ""
+  buildx-args-common:
+    description: "Extra arguments to pass to the `buildx build` command for both base and extras images."
+    required: false
+    default: ""
+  buildx-args-base:
+    description: "Extra arguments to pass to the `buildx build` command for the base image."
+    required: false
+    default: ""
+  buildx-args-extras:
+    description: "Extra arguments to pass to the `buildx build` command for the extras image."
+    required: false
+    default: ""
+
+outputs:
+  base_image_name_with_tag:
+    description: "The full image name of the base image."
+    value: ${{ steps.build-base-image.outputs.image_name_with_tag }}
+  base_image_name:
+    description: "The image name not including the tag of the base image."
+    value: ${{ steps.build-base-image.outputs.image_name }}
+  base_image_tag:
+    description: "The computed image tag of the base image."
+    value: ${{ steps.build-base-image.outputs.image_tag }}
+  extras_image_name_with_tag:
+    description: "The full image name of the extras image."
+    value: ${{ steps.build-extras-image.outputs.image_name_with_tag }}
+  extras_image_name:
+    description: "The image name not including the tag of the extras image."
+    value: ${{ steps.build-extras-image.outputs.image_name }}
+  extras_image_tag:
+    description: "The computed image tag of the extras image."
+    value: ${{ steps.build-extras-image.outputs.image_tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build base image
+      id: build-base-image
+      uses: ./.github/actions/images/build-image
+      with:
+        context: ${{ inputs.context }}
+        image-name: ${{ inputs.image-name }}
+        image-tag-suffix: ${{ inputs.image-tag-suffix }}
+        dockerfile: ${{ inputs.dockerfile }}
+        doppler-token: ${{ inputs.doppler-token }}
+        cloudsmith-repo-name: ${{ inputs.cloudsmith-repo-name }}
+        cloudsmith-service: ${{ inputs.cloudsmith-service }}
+        github-token: ${{ inputs.github-token }}
+        buildx-args: |
+          --target controller
+          ${{ inputs.buildx-args-common }}
+          ${{ inputs.buildx-args-base }}
+
+    - name: Build extras image
+      id: build-extras-image
+      uses: ./.github/actions/images/build-image
+      with:
+        context: ${{ inputs.context }}
+        image-name: ${{ inputs.image-name }}-extras
+        image-tag-suffix: ${{ inputs.image-tag-suffix }}
+        dockerfile: ${{ inputs.dockerfile }}
+        doppler-token: ${{ inputs.doppler-token }}
+        cloudsmith-repo-name: ${{ inputs.cloudsmith-repo-name }}
+        cloudsmith-service: ${{ inputs.cloudsmith-service }}
+        github-token: ${{ inputs.github-token }}
+        buildx-args: |
+          --target controller-extras
+          ${{ inputs.buildx-args-common }}
+          ${{ inputs.buildx-args-extras }}

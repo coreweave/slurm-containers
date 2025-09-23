@@ -1,0 +1,19 @@
+diff --git a/src/plugins/topology/block/topology_block.c b/src/plugins/topology/block/topology_block.c
+index 40a4337064..353bf8d2d2 100644
+--- a/src/plugins/topology/block/topology_block.c
++++ b/src/plugins/topology/block/topology_block.c
+@@ -203,13 +203,9 @@ extern bitstr_t *topology_p_get_bitmap(char *name)
+ 	return NULL;
+ }
+
+-/*
+- * When TopologyParam=SwitchAsNodeRank is set, this plugin assigns a unique
+- * node_rank for all nodes belonging to the same bblock.
+- */
+ extern bool topology_p_generate_node_ranking(void)
+ {
+-	return true;
++	return false;
+ }
+
+ /*

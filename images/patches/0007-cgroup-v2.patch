@@ -1,0 +1,48 @@
+diff --git a/src/plugins/cgroup/v2/cgroup_v2.c b/src/plugins/cgroup/v2/cgroup_v2.c
+index a986c4c8d7..289ebc5a8e 100644
+--- a/src/plugins/cgroup/v2/cgroup_v2.c
++++ b/src/plugins/cgroup/v2/cgroup_v2.c
+@@ -1429,6 +1429,12 @@ extern int cgroup_p_setup_scope(char *scope_path)
+ 	 */
+ 	invoc_id = getenv("INVOCATION_ID");
+
++	/* Variables for setting the destination for PIDs being moved in _empty_pids() or
++	 * deciding whether to skip migration instead. */
++	char *target_path = NULL;
++	char *target_subpath = "/system";
++	struct stat sb;
++
+ 	if (!_is_cgroup2_mount(slurm_cgroup_conf.cgroup_mountpoint)) {
+ 		fatal("%s is not a valid cgroup2 mountpoint",
+ 		      slurm_cgroup_conf.cgroup_mountpoint);
+@@ -1485,17 +1491,27 @@ extern int cgroup_p_setup_scope(char *scope_path)
+ 	 *
+ 	 * So move the pids away from the "false root" cgroup to /system.
+ 	 *
+-	 * Only do that if IgnoreSystemd is set.
++	 * Only do that if IgnoreSystemd is set and if migration hasn't
++	 * already occurred.
+ 	 */
++
++	xstrfmtcat(target_path, "%s%s", slurm_cgroup_conf.cgroup_mountpoint, target_subpath);
++
+ 	if (running_in_slurmd() && cgroup_p_has_feature(CG_FALSE_ROOT) &&
+-	    slurm_cgroup_conf.ignore_systemd) {
+-		if (_empty_pids(&int_cg[CG_LEVEL_ROOT], "/system") !=
++	    slurm_cgroup_conf.ignore_systemd && stat(target_path, &sb)) {
++		xfree(target_path);
++
++		if (_empty_pids(&int_cg[CG_LEVEL_ROOT], target_subpath) !=
+ 		    SLURM_SUCCESS){
+ 			error("cannot empty the false root cgroup (%s) of pids.",
+ 			      int_cg[CG_LEVEL_ROOT].path);
+ 			return SLURM_ERROR;
+ 		}
++	} else {
++		xfree(target_path);
+ 	}
++
++
+ 	/*
+ 	 * Check available controllers in cgroup.controller, record them in our
+ 	 * bitmap and enable them if EnableControllers option is set.
