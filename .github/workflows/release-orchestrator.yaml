@@ -45,6 +45,10 @@ jobs:
     needs: [verify-version]
     uses: ./.github/workflows/build-images.yaml
     secrets: inherit
+    permissions:
+      contents: read # required for accessing the repo contents
+      id-token: write # required for requesting JWT and OIDC tokens
+      packages: write # Required for pulling the cw actions images
 
   release:
     needs: [get-version, verify-version, build-images]
