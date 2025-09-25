@@ -2,8 +2,9 @@
 
 name: Release Orchestrator
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "*"
 
 permissions:
   contents: read
