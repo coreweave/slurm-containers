@@ -2,45 +2,46 @@
 
 name: Release Orchestrator
 on:
-  push:
-    branches:
-      - main
-    tags-ignore:
-      - "**"
+  release:
+    types: [published]
 
 permissions:
   contents: read
   packages: read # Required for pulling the cw actions images
 
 jobs:
-  # Determine next release version to use in later steps, note need to handle skipping later bits better
+  # Determine most recent git tag to use in later steps
   get-version:
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-semantic-release:v1.14.0
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
     outputs:
-      version: ${{ steps.get-next-version.outputs.version }}
-      tag: ${{ steps.get-next-version.outputs.tag }}
+      version: ${{ steps.get-latest-tag.outputs.version }}
+      tag: ${{ steps.get-latest-tag.outputs.tag }}
     permissions:
-      contents: write
+      contents: read
       packages: read # Required for pulling the cw actions images
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Get next version
-        id: get-next-version
-        uses: coreweave/actions/release/semantic-release@semantic-release-action-v1.15.0
         with:
-          dry-run: true
-          config: .releaserc.yaml
+          fetch-depth: 0 # Fetch all history for tags
+      - name: Get latest tag
+        id: get-latest-tag
+        run: |
+          # Get the most recent tag
+          latest_tag="$(git describe --tags --abbrev=0)"
+          echo "version=${latest_tag}" >> "$GITHUB_OUTPUT"
+          echo "tag=${latest_tag}" >> "$GITHUB_OUTPUT"
+          echo "Latest tag: ${latest_tag}"
 
-  # This is used to verify we actually have a tag from Semantic release to gate the rest
+  # This is used to verify we actually have a tag to gate the rest
   verify-version:
     needs: get-version
     runs-on: cw
     container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
-    if: ${{ ! startsWith(github.sha, needs.get-version.outputs.version) }}
+    if: ${{ needs.get-version.outputs.version != '' }}
     steps:
-      - run: echo "Tag ${{ needs.get-version.outputs.version }}"
+      - run: echo "Using tag ${{ needs.get-version.outputs.version }}"
 
   build-images:
     needs: [verify-version]
@@ -50,24 +51,3 @@ jobs:
       contents: read # required for accessing the repo contents
       id-token: write # required for requesting JWT and OIDC tokens
       packages: write # Required for pulling the cw actions images
-
-  release:
-    needs: [get-version, verify-version, build-images]
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-semantic-release:v1.8.0
-    outputs:
-      tag: ${{ steps.release.outputs.tag }}
-    permissions:
-      contents: write
-      packages: read # Required for pulling the cw actions images
-      pull-requests: write
-      issues: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Create release
-        id: release
-        uses: coreweave/actions/release/semantic-release@semantic-release-action-v1.15.0
-        with:
-          dry-run: false
-          config: .releaserc.yaml
