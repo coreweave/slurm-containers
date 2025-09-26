@@ -3,71 +3,41 @@
 name: Release Orchestrator
 on:
   push:
-    branches:
-      - main
-    tags-ignore:
-      - "**"
+    tags:
+      - "*"
 
 permissions:
   contents: read
   packages: read # Required for pulling the cw actions images
 
 jobs:
-  # Determine next release version to use in later steps, note need to handle skipping later bits better
-  get-version:
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-semantic-release:v1.14.0
-    outputs:
-      version: ${{ steps.get-next-version.outputs.version }}
-      tag: ${{ steps.get-next-version.outputs.tag }}
-    permissions:
-      contents: write
-      packages: read # Required for pulling the cw actions images
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Get next version
-        id: get-next-version
-        uses: coreweave/actions/release/semantic-release@semantic-release-action-v1.15.0
-        with:
-          dry-run: true
-          config: .releaserc.yaml
-
-  # This is used to verify we actually have a tag from Semantic release to gate the rest
-  verify-version:
-    needs: get-version
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
-    if: ${{ ! startsWith(github.sha, needs.get-version.outputs.version) }}
-    steps:
-      - run: echo "Tag ${{ needs.get-version.outputs.version }}"
-
   build-images:
-    needs: [verify-version]
     uses: ./.github/workflows/build-images.yaml
+    with:
+      target-repo-name: "${{ vars.CLOUDSMITH_REPO_NAME }}"
     secrets: inherit
     permissions:
       contents: read # required for accessing the repo contents
       id-token: write # required for requesting JWT and OIDC tokens
       packages: write # Required for pulling the cw actions images
 
-  release:
-    needs: [get-version, verify-version, build-images]
+  publish:
+    needs: [build-images]
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-semantic-release:v1.8.0
-    outputs:
-      tag: ${{ steps.release.outputs.tag }}
-    permissions:
-      contents: write
-      packages: read # Required for pulling the cw actions images
-      pull-requests: write
-      issues: write
+    container: registry.gitlab.com/coreweave/sunk/ci:v5.4.0-2024-12-27T21.13.49Z # TODO SUNK-622, replace this image
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - name: Create release
-        id: release
-        uses: coreweave/actions/release/semantic-release@semantic-release-action-v1.15.0
         with:
-          dry-run: false
-          config: .releaserc.yaml
+          fetch-depth: 0
+      - name: Build Registry Auth
+        id: build-registry-auth
+        uses: ./.github/actions/images/build-docker-config
+        with:
+          cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish images
+        env:
+          AUTH_FILE: ${{ steps.build-registry-auth.outputs.docker_config_json_filename }}
+          CI_REGISTRY: docker.artifacts.coreweave.com
+        run: ci/publish.sh ${{ github.ref_name }}
