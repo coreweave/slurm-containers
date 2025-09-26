@@ -25,6 +25,10 @@ jobs:
     needs: [build-images]
     runs-on: cw
     container: registry.gitlab.com/coreweave/sunk/ci:v5.4.0-2024-12-27T21.13.49Z # TODO SUNK-622, replace this image
+    permissions:
+      contents: read
+      id-token: write # Required for OIDC token generation
+      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
