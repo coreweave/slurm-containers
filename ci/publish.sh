@@ -28,7 +28,7 @@ done
 CI_COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA:-$(git rev-parse --short=8 HEAD)}
 
 # Setup Skopeo
-skopeo login --compat-auth-file $AUTH_FILE $CI_REGISTRY
+skopeo login --authfile "$AUTH_FILE" "$CI_REGISTRY"
 
 # Select Docker images to tag.
 success=true
