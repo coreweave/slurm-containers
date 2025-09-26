@@ -38,6 +38,8 @@ jobs:
         run: git config --global --add safe.directory "$(pwd)"
       - name: Build Registry Auth
         id: build-registry-auth
+        env:
+          CI_REGISTRY: docker.artifacts.coreweave.com
         uses: ./.github/actions/images/build-docker-config
         with:
           cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
