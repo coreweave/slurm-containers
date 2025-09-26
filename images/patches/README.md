@@ -224,3 +224,19 @@ This patch backports the following commits to address an issue with prolog scrip
 executed correctly.
 [Slurm Commit 1](https://github.com/SchedMD/slurm/commit/d4d020b553c3c510a80c2e60b6063bd52e78414c)
 [Slurm Commit 2](https://github.com/SchedMD/slurm/commit/6df8fb6ecf2a0d9f9bca0d9670efcc67ac943d3b)
+
+### 0019-empty-pids-retry
+
+This patch changes the `_empty_pids()` function of the cgroup/v2 plugin to retry PID migration and
+the enabling of subtree controllers on failure. This gets around a known issue caused by PIDs
+entering the top-level cgroup during migration, resulting in failures to enable controllers in that
+location due to the [no internal process constraint].
+
+This patch will still be required as of [5a1c0174] because the race condition still exists in
+`_empty_pids()`.
+
+The race condition is described in the [source code].
+
+[5a1c0174]: https://github.com/SchedMD/slurm/commit/5a1c017420123f0978a559788723749be043e2c8
+[source code]: https://github.com/SchedMD/slurm/blob/slurm-24-11-5-1/src/plugins/cgroup/v2/cgroup_v2.c#L1387-L1394
+[no internal process constraint]: https://docs.kernel.org/admin-guide/cgroup-v2.html#no-internal-process-constraint
