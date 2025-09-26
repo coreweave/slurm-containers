@@ -27,9 +27,6 @@ done
 
 CI_COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA:-$(git rev-parse --short=8 HEAD)}
 
-# Setup Skopeo
-skopeo login --authfile "$AUTH_FILE" "$CI_REGISTRY"
-
 # Select Docker images to tag.
 success=true
 docker_registry="docker://$CI_REGISTRY"
@@ -61,13 +58,13 @@ tag_cmds=()
 for hash_image in "${images[@]}"; do
   version_image=$(echo $hash_image | sed "s/$CI_COMMIT_SHORT_SHA/$VERSION/")
   previous_image=$(echo $hash_image | sed "s/$CI_COMMIT_SHORT_SHA/$previous_version/")
-  if skopeo inspect "$docker_registry/$hash_image" > /dev/null 2>&1; then
+  if skopeo inspect --authfile "$AUTH_FILE" "$docker_registry/$hash_image" > /dev/null 2>&1; then
     echo "Tagging $hash_image as $VERSION"
-    cmd="skopeo copy --multi-arch all '$docker_registry/$hash_image' '$docker_registry/$version_image'"
+    cmd="skopeo copy --authfile '$AUTH_FILE' --multi-arch all '$docker_registry/$hash_image' '$docker_registry/$version_image'"
     tag_cmds+=( "${cmd}" )
-  elif skopeo inspect "$docker_registry/$previous_image" > /dev/null 2>&1; then
+  elif skopeo inspect --authfile "$AUTH_FILE" "$docker_registry/$previous_image" > /dev/null 2>&1; then
     echo "Tagging $previous_image as $VERSION"
-    cmd="skopeo copy --multi-arch all '$docker_registry/$previous_image' '$docker_registry/$version_image'"
+    cmd="skopeo copy --authfile '$AUTH_FILE' --multi-arch all '$docker_registry/$previous_image' '$docker_registry/$version_image'"
     tag_cmds+=( "${cmd}" )
   else
     echo "ERROR: A new image for $hash_image was not built and an image for $previous_version was not found."
