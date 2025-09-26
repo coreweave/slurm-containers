@@ -11,41 +11,7 @@ permissions:
   packages: read # Required for pulling the cw actions images
 
 jobs:
-  # Determine most recent git tag to use in later steps
-  get-version:
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
-    outputs:
-      version: ${{ steps.get-latest-tag.outputs.version }}
-      tag: ${{ steps.get-latest-tag.outputs.tag }}
-    permissions:
-      contents: read
-      packages: read # Required for pulling the cw actions images
-    steps:
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 0 # Fetch all history for tags
-      - name: Get latest tag
-        id: get-latest-tag
-        run: |
-          # Get the most recent tag
-          latest_tag="$(git describe --tags --abbrev=0)"
-          echo "version=${latest_tag}" >> "$GITHUB_OUTPUT"
-          echo "tag=${latest_tag}" >> "$GITHUB_OUTPUT"
-          echo "Latest tag: ${latest_tag}"
-
-  # This is used to verify we actually have a tag to gate the rest
-  verify-version:
-    needs: get-version
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
-    if: ${{ needs.get-version.outputs.version != '' }}
-    steps:
-      - run: echo "Using tag ${{ needs.get-version.outputs.version }}"
-
   build-images:
-    needs: [verify-version]
     uses: ./.github/workflows/build-images.yaml
     with:
       target-repo-name: "${{ vars.CLOUDSMITH_REPO_NAME }}"
@@ -56,7 +22,7 @@ jobs:
       packages: write # Required for pulling the cw actions images
 
   publish:
-    needs: [get-version, verify-version, build-images]
+    needs: [build-images]
     runs-on: cw
     container: registry.gitlab.com/coreweave/sunk/ci:v5.4.0-2024-12-27T21.13.49Z # TODO SUNK-622, replace this image
     steps:
@@ -74,4 +40,4 @@ jobs:
         env:
           AUTH_FILE: ${{ steps.build-registry-auth.outputs.docker_config_json_filename }}
           CI_REGISTRY: docker.artifacts.coreweave.com
-        run: ci/publish.sh ${{ needs.get-version.outputs.version }}
+        run: ci/publish.sh ${{ github.ref_name }}
