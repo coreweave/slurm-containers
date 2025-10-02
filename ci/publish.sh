@@ -15,7 +15,7 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
-VERSION="v$1"
+VERSION="$1"
 
 # Check required env vars
 for var in AUTH_FILE CI_REGISTRY; do
