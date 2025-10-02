@@ -27,6 +27,10 @@ done
 
 CI_COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA:-$(git rev-parse --short=8 HEAD)}
 
+# Extract username and password from auth file
+REGISTRY_USERNAME=$(jq -r ".auths[\"$CI_REGISTRY\"].username" "$AUTH_FILE")
+REGISTRY_PASSWORD=$(jq -r ".auths[\"$CI_REGISTRY\"].password" "$AUTH_FILE")
+
 # Select Docker images to tag.
 success=true
 docker_registry="docker://$CI_REGISTRY"
@@ -34,10 +38,8 @@ previous_version=$(git describe origin/main^ --tags --abbrev=0)
 ci_file=".github/workflows/build-images.yaml"
 
 # This extracts the images from the build-images.yaml file and handles cases where the image-tag-suffix is present
-images=($(yq '.jobs[] | .steps[] | select(.with.image-target != null and .uses != "*extras" and ( .with | has("image-tag-suffix") | not)) | .with.image-target + ":'$CI_COMMIT_SHORT_SHA'"' $ci_file))
-extrasImages=($(yq '.jobs[] | .steps[] | select(.with.image-target != null and .uses == "*extras") | .with.image-target + ":'$CI_COMMIT_SHORT_SHA'-" + .with.image-tag-suffix' $ci_file | tr -d " " ))
-extrasImages+=($(yq '.jobs[] | .steps[] | select(.with.image-target != null and .uses == "*extras" and ( .with | has("image-tag-suffix"))) | .with.image-target + "-extras:'$CI_COMMIT_SHORT_SHA'-" + .with.image-tag-suffix' $ci_file | tr -d " "))
-extrasImages+=($(yq '.jobs[] | .steps[] | select(.with.image-target != null and .uses != "*extras" and ( .with | has("image-tag-suffix"))) | .with.image-target + ":'$CI_COMMIT_SHORT_SHA'-" + .with.image-tag-suffix' $ci_file | tr -d " "))
+images=($(yq '.jobs[] | .steps[] | select(.uses == "./.github/actions/images/build-with-extras" and .with.image-name != null) | .with.image-name + ":'$CI_COMMIT_SHORT_SHA'-" + .with.image-tag-suffix' $ci_file | tr -d " "))
+extrasImages=($(yq '.jobs[] | .steps[] | select(.uses == "./.github/actions/images/build-with-extras" and .with.image-name != null) | .with.image-name + "-extras:'$CI_COMMIT_SHORT_SHA'-" + .with.image-tag-suffix' $ci_file | tr -d " "))
 osVersions=($(yq '(.env.build-settings | from_yaml).[].os' $ci_file))
 cudaVersions=($(yq '(.env.build-settings | from_yaml).[].cuda.[].name' $ci_file))
 
@@ -45,31 +47,58 @@ cudaVersions=($(yq '(.env.build-settings | from_yaml).[].cuda.[].name' $ci_file)
 for image in "${extrasImages[@]}"; do
   for os in "${osVersions[@]}"; do
     if [[ $image != *"cuda_name"* ]]; then
-      images+=($(echo $image | sed "s/\${{matrix.build-settings.os}}/$os/"))
+      processed_image=$(echo $image | sed "s/\${{matrix.build-settings.os}}/$os/")
+      images+=("$processed_image")
       continue
     fi
     for cuda in "${cudaVersions[@]}"; do
-      images+=($(echo $image | sed "s/\${{matrix.build-settings.os}}/$os/" | sed "s/\${{matrix.build-settings.cuda_name}}/$cuda/"))
+      processed_image=$(echo $image | sed "s/\${{matrix.build-settings.os}}/$os/" | sed "s/\${{matrix.build-settings.cuda_name}}/$cuda/")
+      images+=("$processed_image")
     done
   done
 done
+
+# Also process the base images that might have template variables
+temp_images=()
+for image in "${images[@]}"; do
+  for os in "${osVersions[@]}"; do
+    if [[ $image != *"cuda_name"* ]]; then
+      processed_image=$(echo $image | sed "s/\${{matrix.build-settings.os}}/$os/")
+      temp_images+=("$processed_image")
+      continue
+    fi
+    for cuda in "${cudaVersions[@]}"; do
+      processed_image=$(echo $image | sed "s/\${{matrix.build-settings.os}}/$os/" | sed "s/\${{matrix.build-settings.cuda_name}}/$cuda/")
+      temp_images+=("$processed_image")
+    done
+  done
+done
+images=("${temp_images[@]}")
 
 tag_cmds=()
 for hash_image in "${images[@]}"; do
   version_image=$(echo $hash_image | sed "s/$CI_COMMIT_SHORT_SHA/$VERSION/")
   previous_image=$(echo $hash_image | sed "s/$CI_COMMIT_SHORT_SHA/$previous_version/")
-  if skopeo inspect --authfile "$AUTH_FILE" "$docker_registry/$hash_image" > /dev/null 2>&1; then
+
+  # Add the repository namespace to the image path
+  full_hash_image="slurm-containers/$hash_image"
+  full_version_image="slurm-containers/$version_image"
+  full_previous_image="slurm-containers/$previous_image"
+
+  if skopeo inspect --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" "$docker_registry/$full_hash_image" > /dev/null 2>&1; then
     echo "Tagging $hash_image as $VERSION"
-    cmd="skopeo copy --authfile '$AUTH_FILE' --multi-arch all '$docker_registry/$hash_image' '$docker_registry/$version_image'"
-    tag_cmds+=( "${cmd}" )
-  elif skopeo inspect --authfile "$AUTH_FILE" "$docker_registry/$previous_image" > /dev/null 2>&1; then
-    echo "Tagging $previous_image as $VERSION"
-    cmd="skopeo copy --authfile '$AUTH_FILE' --multi-arch all '$docker_registry/$previous_image' '$docker_registry/$version_image'"
+    cmd="skopeo copy --src-username '$REGISTRY_USERNAME' --src-password '$REGISTRY_PASSWORD' --dest-username '$REGISTRY_USERNAME' --dest-password '$REGISTRY_PASSWORD' --multi-arch all '$docker_registry/$full_hash_image' '$docker_registry/$full_version_image'"
     tag_cmds+=( "${cmd}" )
   else
-    echo "ERROR: A new image for $hash_image was not built and an image for $previous_version was not found."
-    echo "Please include a commit to modify $hash_image and try again."
-    success=false
+    if skopeo inspect --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" "$docker_registry/$full_previous_image" > /dev/null 2>&1; then
+      echo "Tagging $previous_image as $VERSION"
+      cmd="skopeo copy --src-username '$REGISTRY_USERNAME' --src-password '$REGISTRY_PASSWORD' --dest-username '$REGISTRY_USERNAME' --dest-password '$REGISTRY_PASSWORD' --multi-arch all '$docker_registry/$full_previous_image' '$docker_registry/$full_version_image'"
+      tag_cmds+=( "${cmd}" )
+    else
+      echo "ERROR: A new image for $hash_image was not built and an image for $previous_version was not found."
+      echo "Please include a commit to modify $hash_image and try again."
+      success=false
+    fi
   fi
 done
 
