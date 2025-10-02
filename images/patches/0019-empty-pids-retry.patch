@@ -1,0 +1,94 @@
+diff --git a/src/plugins/cgroup/v2/cgroup_v2.c b/src/plugins/cgroup/v2/cgroup_v2.c
+index be351d32a1..453bb0f57a 100644
+--- a/src/plugins/cgroup/v2/cgroup_v2.c
++++ b/src/plugins/cgroup/v2/cgroup_v2.c
+@@ -1405,12 +1405,8 @@ static int _empty_pids(xcgroup_t *from, char *to)
+ 	xcgroup_t dest;
+ 	bitstr_t *system_ctrls = bit_alloc(CG_CTL_CNT);
+ 	int rc = SLURM_ERROR;
+-
+-	if (_get_controllers(slurm_cgroup_conf.cgroup_mountpoint,
+-			     system_ctrls) != SLURM_SUCCESS) {
+-		error("Unable to get cgroup root controllers.");
+-		goto fail;
+-	}
++	int controllers_disabled = 1;
++	int max_retries = 5;
+
+ 	if (common_cgroup_create(&int_cg_ns, &dest, to, (uid_t) 0, (gid_t) 0) !=
+ 	    SLURM_SUCCESS) {
+@@ -1423,42 +1419,55 @@ static int _empty_pids(xcgroup_t *from, char *to)
+ 		goto fail;
+ 	}
+
+-	if (common_cgroup_get_pids(from, &pids, &npids) != SLURM_SUCCESS) {
+-		error("Unable to get pids from origin cgroup %s", from->path);
+-		goto fail;
+-	}
++	int attempt_count = 0;
++	do {
++		debug("This is attempt %d of trying to move PIDs and enable subtree control.", ++attempt_count);
+
+-	for (int i = 0; i < npids; i++) {
+-		if (common_cgroup_move_process(&dest, pids[i]) !=
+-		    SLURM_SUCCESS) {
+-			error("Unable to move process %d from %s to %s cgroup.",
+-			      pids[i], from->path, dest.path);
++		xfree(pids); // this function checks for NULL inputs and also sets them to NULL after freeing memory
++		npids = 0;
++
++		if (_get_controllers(slurm_cgroup_conf.cgroup_mountpoint,
++					system_ctrls) != SLURM_SUCCESS) {
++			error("Unable to get cgroup root controllers.");
++			goto fail;
++		}
++
++		if (common_cgroup_get_pids(from, &pids, &npids) != SLURM_SUCCESS) {
++			error("Unable to get pids from origin cgroup %s", from->path);
+ 			goto fail;
+ 		}
+-	}
+
+-	if (_enable_subtree_control(from->path, system_ctrls)) {
+-		error("Cannot enable subtree control in %s cgroup. Trying to wait for process movement: %m",
+-		      from->path);
++		for (int i = 0; i < npids; i++) {
++			if (common_cgroup_move_process(&dest, pids[i]) !=
++				SLURM_SUCCESS) {
++				error("Unable to move process %d from %s to %s cgroup.",
++					pids[i], from->path, dest.path);
++				goto fail;
++			}
++		}
++
+ 		for (int i = 0; i < npids; i++) {
+ 			if (!common_cgroup_wait_pid_moved(from, pids[i],
+ 							  from->path)) {
+ 				error("Move pid %d from %s to %s failed.",
+ 				      pids[i], from->path, dest.path);
+-				goto fail;
+ 			}
+ 		}
+-		if (_enable_subtree_control(from->path, system_ctrls)) {
+-			error("Cannot enable subtree control for cgroup %s: %m",
+-			      from->path);
+-			goto fail;
+-		}
++	} while ((controllers_disabled = _enable_subtree_control(from->path, system_ctrls))
++		&& attempt_count <= max_retries);
++
++	if (controllers_disabled) {
++		goto fail;
+ 	}
++
+ 	rc = SLURM_SUCCESS;
+ fail:
+ 	common_cgroup_destroy(&dest);
+ 	FREE_NULL_BITMAP(system_ctrls);
+ 	xfree(pids);
++	if (controllers_disabled) {
++		fatal("Could not enable subtree control after %d attempts.", attempt_count);
++	}
+ 	return rc;
+ }
+

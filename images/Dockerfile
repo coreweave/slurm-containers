@@ -15,7 +15,7 @@ ARG SLURM_PMIX_VERSION=pmix2
 ARG LIBNSSCACHE_VERSION=0.21
 # NSSCACHE_VERSION points to a commit fixing an occasionally incorrect assumption about a
 # `modifyTimestamp` field being present in responses.
-ARG NSSCACHE_VERSION=v0.1.0
+ARG NSSCACHE_VERSION=v0.4.0
 # This is currently only used to find the `dist-packages` location for the `nsscache` installation
 # TODO (SUNK-948): Do this dynamically
 ARG PYTHON_VERSION=3.10
@@ -55,6 +55,9 @@ RUN apt-get -qq update && \
   libdb-dev \
   libdbus-1-dev \
   libgnutls28-dev \
+  libhdf5-dev \
+  libhdf5-serial-dev \
+  hdf5-tools \
   libhttp-parser-dev \
   libhttp-parser2.9 \
   libhwloc-dev \
@@ -146,7 +149,7 @@ WORKDIR /build/slurm-$SLURM_VERSION
 RUN arch=$(uname -m) && \
   ./configure --prefix=/usr --libdir=/usr/lib/${arch}-linux-gnu --sysconfdir=/etc/slurm \
   --enable-pam --with-pam_dir=/usr/lib/${arch}-linux-gnu/security \
-  --without-hdf5 --disable-glibtest --disable-gtktest \
+  --with-hdf5 --disable-glibtest --disable-gtktest \
   --with-pmix=/usr/lib/${arch}-linux-gnu/$SLURM_PMIX_VERSION \
   --with-json=yes --with-yaml=yes --with-http-parser=yes --with-jwt=/usr/local/ --with-bpf=yes
 COPY build/Makefile.docs doc/Makefile
@@ -202,7 +205,7 @@ RUN arch=$(uname -m) && \
   tar -C /build -xpf /tmp/s6-overlay-noarch.tar.xz && \
   tar -C /build -xpf /tmp/s6-overlay-${arch}.tar.xz
 
-FROM builder as libnss-cache
+FROM builder AS libnss-cache
 ARG LIBNSSCACHE_VERSION
 WORKDIR /build
 RUN cd /build && \
@@ -211,7 +214,7 @@ RUN cd /build && \
   git checkout version/${LIBNSSCACHE_VERSION} && \
   make install
 
-FROM builder as nsscache
+FROM builder AS nsscache
 ARG NSSCACHE_VERSION
 WORKDIR /build
 # Patch default shell from empty string to configurable value in `ldap_default_shell` in nsscahe.conf
@@ -286,6 +289,10 @@ RUN apt-get -qq update && \
   libyaml-0-2 \
   munge \
   environment-modules \
+  # HDF5 runtime libraries
+  libhdf5-103 \
+  libhdf5-hl-100 \
+  libhdf5-cpp-103 \
   # Needed for init.sh script
   gettext-base \
   openssh-server \
@@ -468,6 +475,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # End user utils
 RUN apt-get -qq update && \
   apt-get -qq install -y --no-install-recommends \
+  build-essential \
   bc \
   bzip2 \
   emacs \
@@ -544,3 +552,9 @@ RUN arch=$(uname -m) && \
   unzip -q awscliv2.zip && \
   sudo ./aws/install && \
   rm -r awscliv2.zip aws
+
+RUN echo "/usr/share/sunk/bin/reboot.sh" > /usr/bin/reboot && \
+  chmod +x /usr/bin/reboot
+
+RUN echo "/usr/share/sunk/bin/reboot.sh" > /usr/sbin/reboot && \
+  chmod +x /usr/sbin/reboot
