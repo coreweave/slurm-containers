@@ -18,7 +18,7 @@ The Slurm container image builds in multiple stages, and creates a fully functio
 
 ### Base Configuration
 
-The default image is built from Ubuntu 22.04 with Slurm 24.11.3. The image supports multiple user IDs:
+The default image is built from Ubuntu 22.04 with Slurm 25.05.3. The image supports multiple user IDs:
 
 - MUNGE runs as UID/GID 400
 - Slurm runs as UID/GID 401
@@ -52,7 +52,7 @@ See the [patches/README.md](./patches/README.md) for detailed explanations of ea
 The image is built using Docker multi-stage builds. Key build arguments include:
 
 - `PARENT_IMAGE`: Base image (default: ubuntu:22.04)
-- `SLURM_VERSION`: Slurm version to build (default: 24.11.3)
+- `SLURM_VERSION`: Slurm version to build (default: 25.05.3)
 - `S6_OVERLAY_VERSION`: S6 overlay version (default: 3.2.0.2)
 - `PYXIS_VERSION`: NVIDIA Pyxis version (default: 0.20.0)
 - `ENROOT_VERSION`: NVIDIA Enroot version (default: 3.5.0)

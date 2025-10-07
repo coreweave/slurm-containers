@@ -1,8 +1,8 @@
 diff --git a/src/plugins/cgroup/v2/cgroup_v2.c b/src/plugins/cgroup/v2/cgroup_v2.c
-index a986c4c8d7..289ebc5a8e 100644
+index 4b32df344a..a925aa0671 100644
 --- a/src/plugins/cgroup/v2/cgroup_v2.c
 +++ b/src/plugins/cgroup/v2/cgroup_v2.c
-@@ -1429,6 +1429,12 @@ extern int cgroup_p_setup_scope(char *scope_path)
+@@ -1592,6 +1592,12 @@ extern int cgroup_p_setup_scope(char *scope_path)
  	 */
  	invoc_id = getenv("INVOCATION_ID");
 
@@ -15,7 +15,7 @@ index a986c4c8d7..289ebc5a8e 100644
  	if (!_is_cgroup2_mount(slurm_cgroup_conf.cgroup_mountpoint)) {
  		fatal("%s is not a valid cgroup2 mountpoint",
  		      slurm_cgroup_conf.cgroup_mountpoint);
-@@ -1485,17 +1491,27 @@ extern int cgroup_p_setup_scope(char *scope_path)
+@@ -1648,17 +1654,27 @@ extern int cgroup_p_setup_scope(char *scope_path)
  	 *
  	 * So move the pids away from the "false root" cgroup to /system.
  	 *
@@ -27,9 +27,9 @@ index a986c4c8d7..289ebc5a8e 100644
 +	xstrfmtcat(target_path, "%s%s", slurm_cgroup_conf.cgroup_mountpoint, target_subpath);
 +
  	if (running_in_slurmd() && cgroup_p_has_feature(CG_FALSE_ROOT) &&
--	    slurm_cgroup_conf.ignore_systemd) {
+-	    slurm_cgroup_conf.ignore_systemd && _pid_in_root("self")) {
 -		if (_empty_pids(&int_cg[CG_LEVEL_ROOT], "/system") !=
-+	    slurm_cgroup_conf.ignore_systemd && stat(target_path, &sb)) {
++	    slurm_cgroup_conf.ignore_systemd && _pid_in_root("self") && stat(target_path, &sb)) {
 +		xfree(target_path);
 +
 +		if (_empty_pids(&int_cg[CG_LEVEL_ROOT], target_subpath) !=
