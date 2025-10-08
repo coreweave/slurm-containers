@@ -117,15 +117,6 @@ functionality that upstream has created to be in the codebase but has not yet re
 This patch can be removed once Slurm releases the code that is on the master branch into a Slurm
 version and that version has been merged into SUNK.
 
-### 0010-topology-block-node-ranking
-
-This patch reverts to alphabetical sorting of nodes by default when using the `topology/block`
-plugin. The changes are taken directly from
-[a commit](https://github.com/SchedMD/slurm/commit/e62665ac1baae7588e29b18aad70ae62d14515c5)
-that is not part of an official Slurm release as of 24-11-4.
-
-This patch can be removed once Slurm releases the code that is on the master branch into a Slurm
-version and that version has been merged into SUNK.
 
 ### 0011-25.05-container-fixes
 
