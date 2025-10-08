@@ -108,16 +108,6 @@ and allows Slurm to continue to process jobs.
 If upstream was to correct the root cause of why job ids become corrupted or handle corrupted job
 ids gracefully then this patch would no longer be required.
 
-### 0009-allowgaps
-
-This patch allows for the
-[allows gap](https://github.com/SchedMD/slurm/commit/700ca4f85f7ab5324d03235d5aa4392367626661)
-functionality that upstream has created to be in the codebase but has not yet released as of 24-11-4.
-
-This patch can be removed once Slurm releases the code that is on the master branch into a Slurm
-version and that version has been merged into SUNK.
-
-
 ### 0011-25.05-container-fixes
 
 This is a collection of patches backported from the upcoming 25.05 release that include significant
