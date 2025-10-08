@@ -29,20 +29,6 @@ bottlenecking behavior and communication timeouts we observed in large clusters.
 patch, the upstream maintainers are not considering changing this value, and prefer reducing the
 controller load with fan-out.
 
-## 0003-revert-no-dynamic-sort
-
-This patch was originally applied to the upstream code in response to
-[a bug we filed](https://support.schedmd.com/show_bug.cgi?id=16295), but was later reverted because
-the patch also caused issues in other cases.
-
-The sort order of nodes impacts how jobs are scheduled, and the way nodes are named reflects the
-general network topology. If the nodes are not sorted, the scheduling can be non-optimal. We have
-enabled the topology file to help optimize scheduling, but that has some other side effects, and not
-all users are familiar with using topology files.
-
-Since backing out the patch, the upstream project has not provided us with any further updates. If
-this is fixed in the upstream code, then this patch will no longer be required.
-
 ## 0004-rest-get-node-default-flags
 
 This patch is a workaround for a bug in `slurmctld` that causes the controller to crash with a
