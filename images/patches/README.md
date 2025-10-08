@@ -175,18 +175,6 @@ This includes the following commits:
 
 This patch can be removed once Slurm 25.05 has been released.
 
-### 0012-25.05-fix-ping-race-condition.patch
-
-This patch is a backport from the upcoming 25.05 release that should hopefully address the
-recurrent issue we've seen with a mass drain of nodes. The issue stems from the periodic pings
-that slurmctld sends out to nodes that havent reported in a while. If a ping cycle takes too long
-and a new ping cycle is started, this can trigger unchecked nodes to be marked as DOWN which can
-trigger subsequent job interruptions/cancellations.
-[Slurm Commit](https://github.com/SchedMD/slurm/commit/f5541fc35d013337c4ccc50306d47f77406f710b)
-ref: SUNK-809
-
-This patch can be removed once Slurm 25.05 has been released.
-
 ### 0013-fix-node-reg-mem-percent-parsing.patch
 
 This patch is a backport from the upcoming 25.05 release that should address the node reg mem
