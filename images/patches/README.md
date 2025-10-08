@@ -166,16 +166,6 @@ This includes the following commits:
 
 This patch can be removed once Slurm 25.05 has been released.
 
-### 0013-fix-node-reg-mem-percent-parsing.patch
-
-This patch is a backport from the upcoming 25.05 release that should address the node reg mem
-percent parsing issue we've seen with `Low Memory` drains despite having the node reg mem percent set
-to 95% eventually draining the nodes and putting them into an invalid state.
-[Slurm Commit](https://github.com/SchedMD/slurm/commit/69966c2f88bcd213015a617ae16a8d3a54aa9e3e)
-ref: SUNK-932
-
-This patch can be removed once Slurm 25.05 has been released.
-
 ### 0014-25.05-fix-xcpuinfo-core-count.patch
 
 This patch fixes a bug in the `xcpuinfo.xcpuinfo_get_cpuspec` function that incorrectly calculates the
