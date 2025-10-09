@@ -108,54 +108,6 @@ and allows Slurm to continue to process jobs.
 If upstream was to correct the root cause of why job ids become corrupted or handle corrupted job
 ids gracefully then this patch would no longer be required.
 
-### 0011-25.05-container-fixes
-
-This is a collection of patches backported from the upcoming 25.05 release that include significant
-changes to how slurm handles being ran with constrained resources. This is primarily backporting the
-`TaskPluginParam=SlurmdSpecOverride` feature.
-This includes the following commits:
-
-- [SchedMD@9f89e6909](https://github.com/SchedMD/slurm/commit/9f89e69092088a8547daf9234ecf435300ee11c5)
-- [SchedMD@43f168923](https://github.com/SchedMD/slurm/commit/43f1689235321c1dd8212d7f3907128c71921e56)
-- [SchedMD@c7c0c1276](https://github.com/SchedMD/slurm/commit/c7c0c127662c75e4fe6f5323282b75581de68f7c)
-- [SchedMD@86ff2d93a](https://github.com/SchedMD/slurm/commit/86ff2d93a34a04377cc56457bd25a66bd661a80e)
-- [SchedMD@9f2ef82a7](https://github.com/SchedMD/slurm/commit/9f2ef82a785fb476439f5995368727eee77f530f)
-- [SchedMD@24f72b117](https://github.com/SchedMD/slurm/commit/24f72b117faedcf49fcaf7335e627621c7e1003d)
-- [SchedMD@0799f5374](https://github.com/SchedMD/slurm/commit/0799f5374d94950063d99ac1ddfd6f8c7556ce60)
-- [SchedMD@8d2267795](https://github.com/SchedMD/slurm/commit/8d226779527fa701a7bd88ccdd19f2bd64d4ace3)
-- [SchedMD@b1b63a242](https://github.com/SchedMD/slurm/commit/b1b63a24207271bf3dc8a2cadd9b4cf6b646d218)
-- [SchedMD@7b283e471](https://github.com/SchedMD/slurm/commit/7b283e471cc2a6d2d446a461429839c14d521462)
-- [SchedMD@7dab35e50](https://github.com/SchedMD/slurm/commit/7dab35e50e78a72586f73fb515ffdbef375b3152)
-- [SchedMD@86ff2d93a](https://github.com/SchedMD/slurm/commit/86ff2d93a34a04377cc56457bd25a66bd661a80e)
-- [SchedMD@57164b24d](https://github.com/SchedMD/slurm/commit/57164b24d8963fecaf31bf08c628ea80eb14b2dd)
-- [SchedMD@cb5a93d4b](https://github.com/SchedMD/slurm/commit/cb5a93d4b70f6f60a27a7f829093c32c225ae2e1)
-- [SchedMD@2445294e2](https://github.com/SchedMD/slurm/commit/2445294e2c45b55bf4ba3294025e4d280e26679b)
-- [SchedMD@ed22dd0b3](https://github.com/SchedMD/slurm/commit/ed22dd0b3329b8a18323fdd2144f7f7b87df24b6)
-- [SchedMD@5f2849cc0](https://github.com/SchedMD/slurm/commit/5f2849cc01b021732f2c85bba0853a435adb364a)
-- [SchedMD@20d04daa6](https://github.com/SchedMD/slurm/commit/20d04daa6a49eef6db3024c05a7c29abf87ce642)
-- [SchedMD@b17a78268](https://github.com/SchedMD/slurm/commit/b17a78268f944b97019b7d88b95adbe7cbf3857c)
-- [SchedMD@7b1eeaaa0](https://github.com/SchedMD/slurm/commit/7b1eeaaa01bb322014749462c186840d11c732e1)
-- [SchedMD@2d0c866a5](https://github.com/SchedMD/slurm/commit/2d0c866a5027eda0a9889c10566e696d9c4d80d1)
-- [SchedMD@37727a036](https://github.com/SchedMD/slurm/commit/37727a036acd9ec624fde6a208706bd3fb37145a)
-- [SchedMD@176cc0695](https://github.com/SchedMD/slurm/commit/176cc06952e0fb189aac5fdf1620fe59be8f2153)
-- [SchedMD@ff8649de4](https://github.com/SchedMD/slurm/commit/ff8649de4c47847901777701069278850e24787d)
-- [SchedMD@939757023](https://github.com/SchedMD/slurm/commit/9397570237e1c03264a8a4fb0f61e4a63940ea20)
-- [SchedMD@6d6e9dd46](https://github.com/SchedMD/slurm/commit/6d6e9dd46408f4ffe08a83b6f95befd504b6afe1)
-- [SchedMD@4789d3ed9](https://github.com/SchedMD/slurm/commit/4789d3ed965d8be41584e7ac4d71c0aea2049f1a)
-- [SchedMD@a4032004a](https://github.com/SchedMD/slurm/commit/a4032004aa39d2a2b33ab47c5a1e017f08725be6)
-- [SchedMD@e91c0e9ff](https://github.com/SchedMD/slurm/commit/e91c0e9ff9e6763b73c4dfef0826868f4776f695)
-- [SchedMD@dea4559da](https://github.com/SchedMD/slurm/commit/dea4559daf1b15f681f1d17c3c6dc29fcafb8eb1)
-- [SchedMD@7a4ccba84](https://github.com/SchedMD/slurm/commit/7a4ccba844e60d3cc807b8acecafa64a82f22795)
-- [SchedMD@f640818f9](https://github.com/SchedMD/slurm/commit/f640818f9f20bd3275894c632c35326fbf4125c6)
-- [SchedMD@caca697d7](https://github.com/SchedMD/slurm/commit/caca697d74f582b3ffb706d33bbb6f0ec15a7a14)
-- [SchedMD@cb5a93d4b](https://github.com/SchedMD/slurm/commit/cb5a93d4b70f6f60a27a7f829093c32c225ae2e1)
-- [SchedMD@0799f5374](https://github.com/SchedMD/slurm/commit/0799f5374d94950063d99ac1ddfd6f8c7556ce60)
-- [SchedMD@119db302e](https://github.com/SchedMD/slurm/commit/119db302ebb2e9899c3b0238fd3f2d92895e1827)
-- [SchedMD@03e231884](https://github.com/SchedMD/slurm/commit/03e2318845ce4180ee6b2269b68d74e2defbffc2)
-- [SchedMD@3777c85b4](https://github.com/SchedMD/slurm/commit/3777c85b468b02e47887901461d51e69733a86cd)
-
-This patch can be removed once Slurm 25.05 has been released.
-
 ### 0014-25.05-fix-xcpuinfo-core-count.patch
 
 This patch fixes a bug in the `xcpuinfo.xcpuinfo_get_cpuspec` function that incorrectly calculates the
