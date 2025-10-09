@@ -9,6 +9,7 @@ alias dld='sinfo -t drain -NO "NodeList:45,Comment:10,Timestamp:25,Reason:130" |
 alias downl='sinfo -t "down" -NO "NodeList:45,Comment:10,Timestamp:25,Reason:130" | uniq'
 alias sn='scontrol show node'
 alias reboot='/usr/share/sunk/bin/reboot.sh'
+alias undrain-prolog='scontrol show nodes --json | jq -r ".nodes[] | select(.reason == \"prolog pre-hook failed (sunk:verify-undrain)\") | .name" | xargs -I % sh -c "echo Undraining %; scontrol update nodename=% state=resume"'
 
 function undrain() {
   if [ "$#" -ne 1 ]
