@@ -1,8 +1,8 @@
 diff --git a/slurm/slurm.h b/slurm/slurm.h
-index 27d133c5a2..a537f87b71 100644
+index ae1bc97d72..876593f3b4 100644
 --- a/slurm/slurm.h
 +++ b/slurm/slurm.h
-@@ -3196,6 +3196,7 @@ typedef struct {
+@@ -3182,6 +3182,7 @@ typedef struct {
  	uint16_t vsize_factor;	/* virtual memory limit size factor */
  	uint16_t wait_time;	/* default job --wait time */
  	char *x11_params;	/* X11Parameters */
@@ -11,10 +11,10 @@ index 27d133c5a2..a537f87b71 100644
 
  typedef struct slurmd_status_msg {
 diff --git a/src/api/config_info.c b/src/api/config_info.c
-index 206c015d6b..43b9612250 100644
+index b6f5d5e8cc..fd7c6df333 100644
 --- a/src/api/config_info.c
 +++ b/src/api/config_info.c
-@@ -1230,6 +1230,8 @@ extern void *slurm_ctl_conf_2_key_pairs(slurm_conf_t *conf)
+@@ -1237,6 +1237,8 @@ extern void *slurm_ctl_conf_2_key_pairs(slurm_conf_t *conf)
 
  	add_key_pair(ret_list, "X11Parameters", "%s", conf->x11_params);
 
@@ -24,18 +24,18 @@ index 206c015d6b..43b9612250 100644
  }
 
 diff --git a/src/common/read_config.c b/src/common/read_config.c
-index bbc7a1e3bb..8e1c2c52bf 100644
+index a34dd39a47..2ac5de7a8b 100644
 --- a/src/common/read_config.c
 +++ b/src/common/read_config.c
-@@ -446,6 +446,7 @@ s_p_options_t slurm_conf_options[] = {
+@@ -437,6 +437,7 @@ s_p_options_t slurm_conf_options[] = {
  	{"VSizeFactor", S_P_UINT16},
  	{"WaitTime", S_P_UINT16},
  	{"X11Parameters", S_P_STRING},
 +	{"SlurmJobSkipIds", S_P_STRING},
 
  	{"DownNodes", S_P_ARRAY, _parse_downnodes, _destroy_downnodes},
- 	{"FrontendName", S_P_ARRAY, _parse_frontend, destroy_frontend},
-@@ -3033,6 +3034,7 @@ extern void free_slurm_conf(slurm_conf_t *ctl_conf_ptr, bool purge_node_hash)
+	{"NodeName", S_P_ARRAY, _parse_nodename, _destroy_nodename},
+@@ -2711,6 +2712,7 @@ extern void free_slurm_conf(slurm_conf_t *ctl_conf_ptr, bool purge_node_hash)
  	xfree (ctl_conf_ptr->unkillable_program);
  	xfree (ctl_conf_ptr->version);
  	xfree (ctl_conf_ptr->x11_params);
@@ -43,15 +43,17 @@ index bbc7a1e3bb..8e1c2c52bf 100644
 
  	if (purge_node_hash)
  		_free_name_hashtbl();
-@@ -3230,6 +3232,7 @@ void init_slurm_conf(slurm_conf_t *ctl_conf_ptr)
- 	ctl_conf_ptr->wait_time			= NO_VAL16;
+@@ -2909,7 +2911,8 @@ void init_slurm_conf(slurm_conf_t *ctl_conf_ptr)
  	xfree (ctl_conf_ptr->x11_params);
- 	ctl_conf_ptr->prolog_epilog_timeout = NO_VAL16;
+	ctl_conf_ptr->prolog_timeout = NO_VAL16;
+	ctl_conf_ptr->epilog_timeout = NO_VAL16;
+-
 +	xfree(ctl_conf_ptr->job_skip_ids);
-
++
  	_free_name_hashtbl();
 
-@@ -4095,6 +4098,8 @@ static int _validate_and_set_defaults(slurm_conf_t *conf,
+	return;
+@@ -3771,6 +3774,8 @@ static int _validate_and_set_defaults(slurm_conf_t *conf,
 
  	(void) s_p_get_string(&conf->authinfo, "AuthInfo", hashtbl);
 
@@ -61,10 +63,10 @@ index bbc7a1e3bb..8e1c2c52bf 100644
  		conf->authtype = xstrdup(DEFAULT_AUTH_TYPE);
 
 diff --git a/src/slurmctld/job_mgr.c b/src/slurmctld/job_mgr.c
-index 43859e63c6..0c5e6bd888 100644
+index e0317dd188..6b41e7d90c 100644
 --- a/src/slurmctld/job_mgr.c
 +++ b/src/slurmctld/job_mgr.c
-@@ -1395,6 +1395,30 @@ extern int job_mgr_dump_job_state(void *object, void *arg)
+@@ -1486,6 +1486,30 @@ extern int job_mgr_dump_job_state(void *object, void *arg)
  	return 0;
  }
 
@@ -95,7 +97,7 @@ index 43859e63c6..0c5e6bd888 100644
  extern int job_mgr_load_job_state(buf_t *buffer,
  				  uint16_t protocol_version)
  {
-@@ -1417,6 +1441,19 @@ extern int job_mgr_load_job_state(buf_t *buffer,
+@@ -1508,6 +1532,19 @@ extern int job_mgr_load_job_state(buf_t *buffer,
  		goto unpack_error;
  	}
 
