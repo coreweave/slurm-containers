@@ -177,13 +177,6 @@ This patch adds node and job Grafana dashboard URLs to the outputs of `scontrol 
 and sbatch log files when a job launches or terminates. The base URLs for this can be configured in
 the `slurm.conf` keys `SUNKNodeDashboardURL` and `SUNKJobDashboardURL`.
 
-### 0018-backport_prolog_fixes
-
-This patch backports the following commits to address an issue with prolog scripts not being
-executed correctly.
-[Slurm Commit 1](https://github.com/SchedMD/slurm/commit/d4d020b553c3c510a80c2e60b6063bd52e78414c)
-[Slurm Commit 2](https://github.com/SchedMD/slurm/commit/6df8fb6ecf2a0d9f9bca0d9670efcc67ac943d3b)
-
 ### 0019-empty-pids-retry
 
 This patch changes the `_empty_pids()` function of the cgroup/v2 plugin to retry PID migration and
