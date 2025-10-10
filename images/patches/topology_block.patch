@@ -1,0 +1,14 @@
+diff --git a/src/plugins/topology/block/topology_block.c b/src/plugins/topology/block/topology_block.c
+index dfaeb78d48..c2aa424b5e 100644
+--- a/src/plugins/topology/block/topology_block.c
++++ b/src/plugins/topology/block/topology_block.c
+@@ -321,7 +321,8 @@ extern int topology_p_get_node_addr(char *node_name, char **paddr,
+ 	/* node not found in configuration */
+ 	if (!node_ptr)
+ 		return SLURM_ERROR;
+-
++	if (!ctx)
++        return common_topo_get_node_addr(node_name, paddr, ppattern);
+ 	for (int i = 0; i < ctx->block_count; i++) {
+ 		if (bit_test(ctx->block_record_table[i].node_bitmap,
+ 			     node_ptr->index)) {
