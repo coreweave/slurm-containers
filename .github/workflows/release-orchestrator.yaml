@@ -4,7 +4,7 @@ name: Release Orchestrator
 on:
   push:
     tags:
-      - "*"
+      - "v[0-9]+.[0-9]+.[0-9]+*coreweave.[0-9]+"
 
 permissions:
   contents: read
