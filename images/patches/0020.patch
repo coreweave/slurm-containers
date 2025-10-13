@@ -1,0 +1,22 @@
+diff --git a/src/plugins/topology/tree/topology_tree.c b/src/plugins/topology/tree/topology_tree.c
+index 5594f017b1..d07c8a8bff 100644
+--- a/src/plugins/topology/tree/topology_tree.c
++++ b/src/plugins/topology/tree/topology_tree.c
+@@ -335,6 +335,17 @@ extern int topology_p_get_node_addr(char *node_name, char **paddr,
+ 	hostlist_t *sl = NULL;
+ 	tree_context_t *ctx = tctx;
+ 
++	/*
++	 * Fix for NULL pointer dereference when topology is not configured.
++	 * This can happen during dynamic node registration (-Z --conf) when
++	 * topology.conf is empty or switches are not configured.
++	 */
++	if (!tctx) {
++		*paddr = NULL;
++		*ppattern = NULL;
++		return SLURM_SUCCESS;
++	}
++
+ 	int s_max_level = 0;
+ 	int i, j;
+ 
