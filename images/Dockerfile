@@ -1,6 +1,6 @@
 ARG PARENT_IMAGE=ubuntu:22.04
 # Slurm version can be release version (ex. 22.05.7) or full git commit sha
-ARG SLURM_VERSION=25.05.3
+ARG SLURM_VERSION=25.05.2
 ARG S6_OVERLAY_VERSION=3.2.0.2
 ARG PYXIS_VERSION=0.20.0
 ARG ENROOT_VERSION=3.5.0
