@@ -1,15 +1,13 @@
 ARG PARENT_IMAGE=ubuntu:22.04
 # Slurm version can be release version (ex. 22.05.7) or full git commit sha
 ARG SLURM_VERSION=25.05.3
-ARG S6_OVERLAY_VERSION=3.2.0.2
-ARG PYXIS_VERSION=0.20.0
-ARG ENROOT_VERSION=3.5.0
-ARG LIBJWT_VERSION=1.17.2
-ARG KUBECTL_VERSION=1.29.9
-# version 4 for Ubuntu 20.04
+ARG S6_OVERLAY_VERSION=3.2.1.0
+ARG PYXIS_VERSION=0.21.0
+ARG ENROOT_VERSION=4.0.1
+ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
+ARG KUBECTL_VERSION=1.34.1
 # version 5 for Ubuntu 22.04
 ARG LIBJSON_VERSION=5
-# pmix for Ubuntu 20.04
 # pmix2 for Ubuntu 22.04
 ARG SLURM_PMIX_VERSION=pmix2
 ARG LIBNSSCACHE_VERSION=0.21
@@ -23,8 +21,8 @@ ARG PYTHON_VERSION=3.10
 ARG NSSCACHE_FILES_DIR="/etc/nsscache"
 
 ## Controller Extras args
-ARG CONDA_VERSION=py312_24.7.1-0
-ARG MICROMAMBA_VERSION=1.5.10-0
+ARG CONDA_VERSION=py313_25.7.0-2
+ARG MICROMAMBA_VERSION=2.3.2-0
 ARG NHC_VERSION=1.4.3
 
 FROM $PARENT_IMAGE AS builder
@@ -297,10 +295,10 @@ RUN apt-get -qq update && \
   gettext-base \
   openssh-server \
   # libnvidia-container
-  nvidia-container-toolkit=1.17.6-1 \
-  nvidia-container-toolkit-base=1.17.6-1 \
-  libnvidia-container-tools=1.17.6-1 \
-  libnvidia-container1=1.17.6-1 \
+  nvidia-container-toolkit \
+  nvidia-container-toolkit-base \
+  libnvidia-container-tools \
+  libnvidia-container1 \
   # Enroot
   bash \
   curl \
