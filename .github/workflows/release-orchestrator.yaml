@@ -14,7 +14,7 @@ jobs:
   build-images:
     uses: ./.github/workflows/build-images.yaml
     with:
-      target-repo-name: "${{ vars.CLOUDSMITH_REPO_NAME }}"
+      target-repo-name: "slurm-containers-public"
     secrets: inherit
     permissions:
       contents: read # required for accessing the repo contents

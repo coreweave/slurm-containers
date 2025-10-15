@@ -81,9 +81,9 @@ for hash_image in "${images[@]}"; do
   previous_image=$(echo $hash_image | sed "s/$CI_COMMIT_SHORT_SHA/$previous_version/")
 
   # Add the repository namespace to the image path
-  full_hash_image="slurm-containers/$hash_image"
-  full_version_image="slurm-containers/$version_image"
-  full_previous_image="slurm-containers/$previous_image"
+  full_hash_image="slurm-containers-public/$hash_image"
+  full_version_image="slurm-containers-public/$version_image"
+  full_previous_image="slurm-containers-public/$previous_image"
 
   if skopeo inspect --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" "$docker_registry/$full_hash_image" > /dev/null 2>&1; then
     echo "Tagging $hash_image as $VERSION"
