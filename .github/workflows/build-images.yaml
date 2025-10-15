@@ -1,4 +1,21 @@
-# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+# (c) 2025 by CoreWeave, Inc.
+#
+# This file is part of Slurm Containers.
+#
+# Slurm Containers is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# Slurm Containers is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with Slurm Containers; if not, write to the
+# Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+# Boston, MA 02110-1301 USA
 
 name: Build Images
 on:
@@ -81,7 +98,7 @@ jobs:
         build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.controller_matrix) }}
 
     permissions:
-      contents: read  # required for accessing the repo contents
+      contents: read # required for accessing the repo contents
       id-token: write # required for requesting JWT and OIDC tokens
       packages: write # required for pulling the cw actions images and writing cache images
 
@@ -147,7 +164,7 @@ jobs:
         build-settings: ${{ fromJSON(needs.parse-build-settings.outputs.slurmd_cw_matrix) }}
 
     permissions:
-      contents: read  # required for accessing the repo contents
+      contents: read # required for accessing the repo contents
       id-token: write # required for requesting JWT and OIDC tokens
       packages: write # required for pulling the cw actions images and writing cache images
 
@@ -215,7 +232,7 @@ jobs:
       images_to_copy: ${{ steps.output-image-names.outputs.images_to_copy }}
 
     permissions:
-      contents: read  # required for accessing the repo contents
+      contents: read # required for accessing the repo contents
       id-token: write # required for requesting JWT and OIDC tokens
       packages: write # required for pulling the cw actions images and writing cache images
 
