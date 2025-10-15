@@ -1,12 +1,23 @@
 #!/bin/bash
 
-# SPDX-FileCopyrightText: © 2025 CoreWeave, Inc. <sunk@coreweave.com>
+# (c) 2025 by CoreWeave, Inc.
 #
-# CoreWeave SUNK Software
+# This file is part of Slurm Containers.
 #
-# Copyright 2025 CoreWeave, Inc.
+# Slurm Containers is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
 #
-# See accompanying NOTICE.  This product includes software that is subject to the LICENSE.
+# Slurm Containers is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with Slurm Containers; if not, write to the
+# Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
+# Boston, MA 02110-1301 USA
 
 set -e
 
@@ -81,9 +92,9 @@ for hash_image in "${images[@]}"; do
   previous_image=$(echo $hash_image | sed "s/$CI_COMMIT_SHORT_SHA/$previous_version/")
 
   # Add the repository namespace to the image path
-  full_hash_image="slurm-containers/$hash_image"
-  full_version_image="slurm-containers/$version_image"
-  full_previous_image="slurm-containers/$previous_image"
+  full_hash_image="slurm-containers-public/$hash_image"
+  full_version_image="slurm-containers-public/$version_image"
+  full_previous_image="slurm-containers-public/$previous_image"
 
   if skopeo inspect --username "$REGISTRY_USERNAME" --password "$REGISTRY_PASSWORD" "$docker_registry/$full_hash_image" > /dev/null 2>&1; then
     echo "Tagging $hash_image as $VERSION"
