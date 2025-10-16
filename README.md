@@ -25,19 +25,8 @@ The default image is built from Ubuntu 22.04 with Slurm 24.11.3. The image suppo
 
 ### Custom Patches
 
-Several patches are applied to Slurm to enhance functionality for Kubernetes integration:
-
-- `0001-max-server-threads.patch`: Increases maximum server threads for better scalability
-- `0002-agent-thread.patch`: Thread handling improvements
-- `0003-revert-no-dynamic-sort.patch`: Reverts sorting changes for compatibility
-- `0004-rest-get-node-default-flags.patch`: Fixes REST API node information access
-- `0005-allow-persistent-none.patch`: Enables persistent storage configurations
-- `0006-allow-all-topology.patch`: Improves topology handling in degraded states
-- `0007-cgroup-v2.patch`: Fixes process assignment issues with cgroup v2
-- `0008-job-skip-ids.patch`: Enhances job ID management
-- `0009-allowgaps.patch`: Implements functionality for allowing gaps in job allocation
-
-See the [patches/README.md](./patches/README.md) for detailed explanations of each patch.
+Several patches are applied to Slurm to enhance functionality for Kubernetes integration.
+See the [patches/README.md](./patches/README.md) for the full list and detailed explanations of each patch.
 
 ### Key Features
 
@@ -62,5 +51,5 @@ The image is built using Docker multi-stage builds. Key build arguments include:
 ### Build Command
 
 ```bash
-docker buildx build -t sunk/slurm:latest .
+docker buildx build -t sunk/slurm:latest images
 ```
