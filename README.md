@@ -26,7 +26,7 @@ The default image is built from Ubuntu 22.04 with Slurm 24.11.3. The image suppo
 ### Custom Patches
 
 Several patches are applied to Slurm to enhance functionality for Kubernetes integration.
-See the [patches/README.md](./patches/README.md) for the full list and detailed explanations of each patch.
+See the [patches/README.md](images/patches/README.md) for the full list and detailed explanations of each patch.
 
 ### Key Features
 
