@@ -1,0 +1,108 @@
+diff --git a/src/interfaces/topology.c b/src/interfaces/topology.c
+index c838542d35..00490f872f 100644
+--- a/src/interfaces/topology.c
++++ b/src/interfaces/topology.c
+@@ -344,8 +344,8 @@ extern int topology_g_build_config(void)
+ 	for (int i = 0; i < tctx_num; i++) {
+ 		int rc2 = (*(ops[tctx[i].idx].build_config))(&(tctx[i]));
+ 		if (rc2) {
+-			debug("%s: %s: %s",
+-			      __func__, g_context[i]->type,
++			error("%s: %s: %s",
++			      __func__, g_context[tctx[i].idx]->type,
+ 			      slurm_strerror(rc2));
+ 			rc = SLURM_ERROR;
+ 		}
+diff --git a/src/plugins/topology/block/block_record.c b/src/plugins/topology/block/block_record.c
+index 4aa873e446..1f98261eea 100644
+--- a/src/plugins/topology/block/block_record.c
++++ b/src/plugins/topology/block/block_record.c
+@@ -171,6 +171,9 @@ static void _log_blocks(block_context_t *ctx)
+
+ extern void block_record_table_destroy(block_context_t *ctx)
+ {
++	if (!ctx)
++		return;
++
+ 	if (!ctx->block_record_table)
+ 		return;
+
+@@ -271,8 +274,12 @@ extern int block_record_validate(topology_ctx_t *tctx)
+ 	if (ctx->block_count == 0) {
+ 		error("No blocks configured");
+ 		s_p_hashtbl_destroy(conf_hashtbl);
+-		xfree(ctx);
+ 		xfree(ptr_array_mem);
++		/*
++		 * Keep the empty context so plugin_ctx is never NULL.
++		 * Functions will check block_count == 0 and handle gracefully.
++		 */
++		tctx->plugin_ctx = ctx;
+ 		return SLURM_ERROR;
+ 	}
+ 	/*
+diff --git a/src/plugins/topology/block/topology_block.c b/src/plugins/topology/block/topology_block.c
+index dfaeb78d48..a6edd1e9fe 100644
+--- a/src/plugins/topology/block/topology_block.c
++++ b/src/plugins/topology/block/topology_block.c
+@@ -244,9 +244,11 @@ extern int topology_p_destroy_config(topology_ctx_t *tctx)
+ {
+ 	block_context_t *ctx = tctx->plugin_ctx;
+
+-	block_record_table_destroy(ctx);
+-	FREE_NULL_BITMAP(ctx->blocks_nodes_bitmap);
+-	xfree(tctx->plugin_ctx);
++	if (ctx) {
++		block_record_table_destroy(ctx);
++		FREE_NULL_BITMAP(ctx->blocks_nodes_bitmap);
++		xfree(tctx->plugin_ctx);
++	}
+
+ 	return SLURM_SUCCESS;
+ }
+diff --git a/src/plugins/topology/tree/switch_record.c b/src/plugins/topology/tree/switch_record.c
+index 70551733fb..21fcd1ca94 100644
+--- a/src/plugins/topology/tree/switch_record.c
++++ b/src/plugins/topology/tree/switch_record.c
+@@ -80,6 +80,9 @@ static void _log_switches(tree_context_t *ctx)
+ /* Free all memory associated with switch_table structure */
+ extern void switch_record_table_destroy(tree_context_t *ctx)
+ {
++	if (!ctx)
++		return;
++
+ 	if (!ctx->switch_table)
+ 		return;
+
+@@ -426,8 +429,13 @@ extern int switch_record_validate(topology_ctx_t *tctx)
+
+ 	if (ctx->switch_count == 0) {
+ 		error("No switches configured");
+-		xfree(ctx);
+ 		s_p_hashtbl_destroy(conf_hashtbl);
++		xfree(ptr_array_mem);
++		/*
++		 * Keep the empty context so plugin_ctx is never NULL.
++		 * Functions will check switch_count == 0 and handle gracefully.
++		 */
++		tctx->plugin_ctx = ctx;
+ 		return SLURM_ERROR;
+ 	}
+
+diff --git a/src/plugins/topology/tree/topology_tree.c b/src/plugins/topology/tree/topology_tree.c
+index 5594f017b1..8e11a08fbf 100644
+--- a/src/plugins/topology/tree/topology_tree.c
++++ b/src/plugins/topology/tree/topology_tree.c
+@@ -228,8 +228,10 @@ extern int topology_p_destroy_config(topology_ctx_t *tctx)
+ {
+ 	tree_context_t *ctx = tctx->plugin_ctx;
+
+-	switch_record_table_destroy(ctx);
+-	xfree(tctx->plugin_ctx);
++	if (ctx) {
++		switch_record_table_destroy(ctx);
++		xfree(tctx->plugin_ctx);
++	}
+
+ 	return SLURM_SUCCESS;
+ }
