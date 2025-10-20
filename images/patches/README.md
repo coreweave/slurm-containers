@@ -15,16 +15,11 @@ likely to be added to the upstream code.
   - [0006-allow-all-topology](#0006-allow-all-topology)
   - [0007-cgroup-v2](#0007-cgroup-v2)
   - [0008-job-skip-ids](#0008-job-skip-ids)
-  - [0009-allowgaps](#0009-allowgaps)
-  - [0010-topology-block-node-ranking](#0010-topology-block-node-ranking)
-  - [0011-25.05-container-fixes](#0011-2505-container-fixes)
-  - [0012-25.05-fix-ping-race-condition.patch](#0012-2505-fix-ping-race-conditionpatch)
-  - [0013-fix-node-reg-mem-percent-parsing.patch](#0013-fix-node-reg-mem-percent-parsingpatch)
   - [0014-25.05-fix-xcpuinfo-core-count.patch](#0014-2505-fix-xcpuinfo-core-countpatch)
   - [0015-remove-gres-core-range-matches-sock.patch](#0015-remove-gres-core-range-matches-sockpatch)
   - [0016-scontrol-dashboards](#0016-scontrol-dashboards)
-  - [0018-backport\_prolog\_fixes](#0018-backport_prolog_fixes)
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
+  - [0020-empty-topology](#0020-empty-topology)
 
 ## 0001-max-server-threads
 
