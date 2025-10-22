@@ -28,6 +28,9 @@ The default image is built from Ubuntu 22.04 with Slurm 25.05.3. The image suppo
 Several patches are applied to Slurm to enhance functionality for Kubernetes integration.
 See the [images/patches/slurm/README.md](./images/patches/slurm/README.md) for the full list and detailed explanations of each patch.
 
+Additionally, there are other custom patches in the [images/patches](./images/patches) directory.
+There are enroot patches at [images/patches/enroot/README.md](./images/patches/enroot/README.md)
+
 ### Key Features
 
 - **JWT Authentication**: Built with JWT support for secure API access
