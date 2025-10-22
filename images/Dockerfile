@@ -137,7 +137,7 @@ COPY --from=libjwt-builder /build/libjwt-install/include/jwt.h /usr/local/includ
 COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
 
 # Apply any patches
-COPY patches/ patches/
+COPY patches/slurm/ patches/
 RUN find /build/patches -type f -name *.patch -print0 | \
   sort -z | \
   xargs -t -0 -r -n 1 patch -p1 -d slurm-$SLURM_VERSION -i
