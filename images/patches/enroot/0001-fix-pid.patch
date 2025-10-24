@@ -1,0 +1,30 @@
+diff --git a/src/runtime.sh b/src/runtime.sh
+index 0b65078..9c64d6a 100644
+--- a/src/runtime.sh
++++ b/src/runtime.sh
+@@ -559,11 +559,22 @@ runtime::list() {
+                 continue
+             fi
+
+-            if [ -n "${info["${name#${cwd}}"]+x}" ]; then
+-                info["${name#${cwd}}"]+=" ${pid} "
+-            else
+-                info["<unknown>"]+=" ${pid} "
++            # Try to strip the expected prefix first (normal case)
++            local container_name="${name#${cwd}}"
++
++            # If the prefix didn't match, try to match against known container names as suffix
++            # (handles bind mount cases where the path prefix differs)
++            if [ "${container_name}" = "${name}" ]; then
++                local basename="${name##*/}"
++                basename="${basename%/}"
++                if [ -n "${info["${basename}"]+x}" ]; then
++                    container_name="${basename}"
++                else
++                    container_name="<unknown>"
++                fi
+             fi
++
++            info["${container_name}"]+=" ${pid} "
+         fi
+     done

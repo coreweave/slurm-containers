@@ -138,7 +138,7 @@ COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
 
 # Apply any patches
 COPY patches/ patches/
-RUN find /build/patches -type f -name *.patch -print0 | \
+RUN find /build/patches/slurm -type f -name *.patch -print0 | \
   sort -z | \
   xargs -t -0 -r -n 1 patch -p1 -d slurm-$SLURM_VERSION -i
 # Build Slurm
@@ -329,6 +329,7 @@ RUN apt-get -qq update && \
   inetutils-traceroute \
   net-tools \
   numactl \
+  patch \
   sudo \
   wget && \
   apt-get -qq clean && \
@@ -358,12 +359,16 @@ RUN echo "HostKey /opt/sunk/etc/ssh/ssh_host_rsa_key" >> /etc/ssh/sshd_config &&
 # Install enroot
 ARG ENROOT_VERSION
 COPY --from=enroot /build/ /tmp/enroot/
+COPY patches/enroot/ /build/patches/enroot/
 RUN arch=$(dpkg --print-architecture) && \
   apt-get install -y \
   /tmp/enroot/enroot-hardened_${ENROOT_VERSION}-1_${arch}.deb \
   /tmp/enroot/enroot-hardened+caps_${ENROOT_VERSION}-1_${arch}.deb && \
   sed -i 's/"--ldconfig=@$(command -v ldconfig.real || command -v ldconfig)"//' /etc/enroot/hooks.d/98-nvidia.sh && \
-  rm -rf /tmp/enroot
+  find /build/patches/enroot -type f -name *.patch -print0 | \
+  sort -z | \
+  xargs -t -0 -r -n 1 patch -p2 -d /usr/lib/enroot -i && \
+  rm -rf /tmp/enroot /build/patches
 
 # Install s6-overlay
 COPY --from=s6-overlay /build/ /
