@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later AND Apache-2.0
+# SPDX-PackageName: slurm-containers
+Note: the upstream SLURM OpenAPI plugin has combined licensing, see src/slurmrestd/plugins/openapi/slurmdbd/LICENSE-openapi.json
 diff --git a/src/slurmrestd/plugins/openapi/slurmctld/nodes.c b/src/slurmrestd/plugins/openapi/slurmctld/nodes.c
 index f10f90a579..60f220e138 100644
 --- a/src/slurmrestd/plugins/openapi/slurmctld/nodes.c

@@ -56,3 +56,20 @@ The image is built using Docker multi-stage builds. Key build arguments include:
 ```bash
 docker buildx build -t sunk/slurm:latest images
 ```
+
+### Licensing
+
+Slurm Containers (including its source code and any other data and materials)
+is distributed subject to GPL-2.0 as noted in [LICENSE](./LICENSE) contained in
+this repository. For questions about use or licensing please contact us via
+GitHub issues.
+
+Slurm Containers and the artifacts generated are also distributed with certain
+third-party code. That code is from the projects and subject to the respective
+licenses listed below.
+
+#### [github.com/SchedMD/slurm](https://github.com/SchedMD/slurm)
+
+- **Copyright**: 2002-2025 [Lawrence Livermore National Laboratory & others](https://github.com/SchedMD/slurm/commits/master/DISCLAIMER)
+- **License**: GPL-2.0-or-later and other licenses for specific files
+- **License File**: [https://github.com/SchedMD/slurm/blob/master/COPYING](https://github.com/SchedMD/slurm/blob/master/COPYING)
