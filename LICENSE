@@ -4,7 +4,7 @@ This file is part of Slurm Containers.
 
 Slurm Containers is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by the
-Free Software Foundation, either version 3 of the License,
+Free Software Foundation, either version 2 of the License,
 or (at your option) any later version.
 
 Slurm Containers is distributed in the hope that it will be useful,
@@ -22,7 +22,7 @@ Boston, MA 02110-1301 USA
                        Version 2, June 1991
 
  Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
- <https://urldefense.com/v3/__https://fsf.org/__;!!I6uDfDBXfA!1PTq2LMtYKpVYu-2PsoxlDQWvAZM-fPUaWZLFN5cZWJxcLM2sXHhbEWRY2ybeEjv9BpAEyEK7Cypgw$ >
+ <https://fsf.org/>
  Everyone is permitted to copy and distribute verbatim copies
  of this license document, but changing it is not allowed.
 
@@ -324,7 +324,7 @@ the "copyright" line and a pointer to where the full notice is found.
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License along
-    with this program; if not, see <https://urldefense.com/v3/__https://www.gnu.org/licenses/__;!!I6uDfDBXfA!1PTq2LMtYKpVYu-2PsoxlDQWvAZM-fPUaWZLFN5cZWJxcLM2sXHhbEWRY2ybeEjv9BpAEyG12cycXA$ >.
+    with this program; if not, see <https://www.gnu.org/licenses/>.
 
 Also add information on how to contact you by electronic and paper mail.
 
