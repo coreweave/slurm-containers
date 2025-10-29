@@ -3,6 +3,8 @@
 This file explains the patches in this directory, why they exist, and reasons why they are not
 likely to be added to the upstream code.
 
+The patches are released under the same terms as the various source files of the upstream SLURM project, and the specific licenses of each of those upstream files should be consulted by users who require validation, as they may be GPL-2.0-or-later, Apache 2.0, BSD-style or other licenses.
+
 ## Table of Contents
 
 - [Slurm Patches](#slurm-patches)
