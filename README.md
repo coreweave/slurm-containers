@@ -73,3 +73,9 @@ licenses listed below.
 - **Copyright**: 2002-2025 [Lawrence Livermore National Laboratory & others](https://github.com/SchedMD/slurm/commits/master/DISCLAIMER)
 - **License**: GPL-2.0-or-later and other licenses for specific files
 - **License File**: [https://github.com/SchedMD/slurm/blob/master/COPYING](https://github.com/SchedMD/slurm/blob/master/COPYING)
+
+#### [github.com/NVIDIA/enroot](https://github.com/NVIDIA/enroot)
+
+- **Copyright**: 2018-2025 NVIDIA
+- **License**: Apache-2.0 with DCO (previously relicensed from BSD-3)
+- **License File**: [https://github.com/NVIDIA/enroot/blob/main/LICENSE](https://github.com/NVIDIA/enroot/blob/main/LICENSE)

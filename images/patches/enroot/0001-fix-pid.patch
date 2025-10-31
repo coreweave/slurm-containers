@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2025 CoreWeave, Inc.
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-PackageName: slurm-containers
 diff --git a/src/runtime.sh b/src/runtime.sh
 index 0b65078..9c64d6a 100644
 --- a/src/runtime.sh

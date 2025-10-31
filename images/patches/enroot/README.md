@@ -2,6 +2,11 @@
 
 This file explains the patches in this directory, why they exist.
 
+As noted in the top-level slurm-containers README, the patches are
+released under the same terms as the parent source files of `enroot`, and the
+specific licenses of each of those files should be consulted by users who
+require validation.
+
 ## Table of Contents
 
 - [enroot Patches](#enroot-patches)
