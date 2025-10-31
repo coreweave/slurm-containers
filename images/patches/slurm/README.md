@@ -3,10 +3,11 @@
 This file explains the patches in this directory, why they exist, and reasons why they are not
 likely to be added to the upstream code.
 
-As noted in LICENSE, the patches are released under the same terms as the
-parent source files of SLURM, and the specific licenses of each of those files
-should be consulted by users who require validation, as they may be
-GPL-2.0-or-later, Apache 2.0 or various BSD-style licenses.
+As noted in the top-level slurm-containers README, the patches are released
+under the same terms as the parent source files of SLURM, and the specific
+licenses of each of those files should be consulted by users who require
+validation, as they may be GPL-2.0-or-later, Apache 2.0 or various BSD-style
+licenses.
 
 ## Table of Contents
 
