@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
 diff --git a/src/interfaces/gres.c b/src/interfaces/gres.c
 index 55c1957dd4..2e3ac67196 100644
 --- a/src/interfaces/gres.c

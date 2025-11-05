@@ -1,23 +1,16 @@
 #!/bin/bash
-
-# (c) 2025 by CoreWeave, Inc.
+# SPDX-FileCopyrightText: 2025 CoreWeave, Inc.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
 #
-# This file is part of Slurm Containers.
+# TODO: Consider replacing this script with FSFe's REUSE: https://reuse.software/dev/#tool
+# reuse annotate --license GPL-2.0-or-later --copyright 'CoreWeave, Inc.'  --year 2025 --skip-existing $FILE
+# (optionally pass in a custom template to fill in the SPDX-PackageName field)
 #
-# Slurm Containers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by the
-# Free Software Foundation, either version 3 of the License,
-# or (at your option) any later version.
-#
-# Slurm Containers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# See the GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License along
-# with Slurm Containers; if not, write to the
-# Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
-# Boston, MA 02110-1301 USA
+# WARNING: Blindly adding the headers to every file without review risks
+# assigning the wrong copyright owner if patches are imported!
+# Consider images/patches/slurm/0003-revert-no-dynamic-sort.patch that is a
+# revert of an upstream patch - LLNL should be noted as the owner of that code.
 
 set -e
 
@@ -74,7 +67,7 @@ get_files_to_update() {
     UPDATE_TARGET=("${UPDATE_DIR}")
   fi
 
-  if FILES_TO_UPDATE=$(grep -rLE "\(c\) [0-9]+ by CoreWeave, Inc." "${UPDATE_TARGET[@]}" | grep -E "\."${EXT}"\$"); then
+  if FILES_TO_UPDATE=$(grep -rLE "SPDX-FileCopyrightText" "${UPDATE_TARGET[@]}" | grep -E "\."${EXT}"\$"); then
     echo -e "files to update: \n${FILES_TO_UPDATE}"
     UPDATED_FILES+=(${FILES_TO_UPDATE})
   else
@@ -101,7 +94,7 @@ simple_update_file () {
     tmpfile=$(mktemp)
     file_date=$(get_git_create_date "${current_file}")
 
-    sed -E "s/(\(c\)) [0-9]+/\1 $file_date/g" -- "${EXEC_DIR}/boilerplate-license.${EXT}.txt" > ${tmpfile}
+    sed -E "/SPDX-FileCopyrightText/s/[0-9]{4}/$file_date/g" -- "${EXEC_DIR}/boilerplate-license.${EXT}.txt" > ${tmpfile}
     echo >> ${tmpfile}
     cat ${1} >> ${tmpfile}
     mv ${tmpfile} ${1}
@@ -113,7 +106,7 @@ update_md_file () {
 
   # Get git file creation date and replace it in the header contents
   file_date=$(get_git_create_date "${current_file}")
-  updated_header=$(sed -E "s/(\(c\)) [0-9]+/\1 $file_date/g" -- "${EXEC_DIR}/boilerplate-license.${EXT}.txt")
+  updated_header=$(sed -E "/SPDX-FileCopyrightText/s/[0-9]{4}/$file_date/g" -- "${EXEC_DIR}/boilerplate-license.${EXT}.txt")
 
   # If title is already in there, insert copyright line after it
   if grep -q "^title: " "${current_file}"; then
@@ -150,7 +143,7 @@ sh_add_license() {
     fi
 
     file_date=$(get_git_create_date "${current_file}")
-    sed -E "s/(\(c\)) [0-9]+/\1 $file_date/g" -- ${EXEC_DIR}/boilerplate-license."${EXT}".txt >> ${tmpfile}
+    sed -E "/SPDX-FileCopyrightText/s/[0-9]{4}/$file_date/g" -- ${EXEC_DIR}/boilerplate-license."${EXT}".txt >> ${tmpfile}
     echo >> ${tmpfile}
     cat ${current_file} >> ${tmpfile}
     mv ${tmpfile} ${current_file}
