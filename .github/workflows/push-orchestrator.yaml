@@ -6,7 +6,6 @@ name: Push Orchestrator
 on:
   push:
     branches-ignore:
-      - develop
       - main
     tags-ignore:
       - "*"

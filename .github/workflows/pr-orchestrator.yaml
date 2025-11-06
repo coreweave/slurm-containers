@@ -5,7 +5,7 @@
 name: PR Orchestrator
 on:
   pull_request:
-    branches: ["main", "develop"]
+    branches: ["main"]
     types:
       - opened
       - reopened
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   commitlint:
-    if: github.base_ref != 'main' && github.ref_name != 'develop' && github.ref_name != 'main'
+    if: github.base_ref != 'main' && github.ref_name != 'main'
     uses: ./.github/workflows/commitlint.yaml
 
   alls-green:

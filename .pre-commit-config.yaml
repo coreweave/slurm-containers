@@ -29,7 +29,7 @@ repos:
       - id: check-shebang-scripts-are-executable
         stages: ["pre-commit"]
       - id: no-commit-to-branch
-        args: [--branch, "develop"] # To prevent committing changes locally to develop
+        args: [--branch, "main"] # To prevent committing changes locally to main
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.17.2
     hooks:
