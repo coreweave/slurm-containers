@@ -28,7 +28,7 @@ REGISTRY_PASSWORD=$(jq -r ".auths[\"$CI_REGISTRY\"].password" "$AUTH_FILE")
 # Select Docker images to tag.
 success=true
 docker_registry="docker://$CI_REGISTRY"
-previous_version=$(git describe origin/main^ --tags --abbrev=0)
+previous_version=$(git describe origin/main^ --tags --abbrev=0 --always)
 ci_file=".github/workflows/build-images.yaml"
 
 # This extracts the images from the build-images.yaml file and handles cases where the image-tag-suffix is present
