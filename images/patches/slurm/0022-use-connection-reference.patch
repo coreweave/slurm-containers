@@ -1,0 +1,142 @@
+diff --git a/src/common/slurm_protocol_api.c b/src/common/slurm_protocol_api.c
+index 03595e4f82..9b897f2207 100644
+--- a/src/common/slurm_protocol_api.c
++++ b/src/common/slurm_protocol_api.c
+@@ -2031,13 +2031,14 @@ extern int send_msg_response(slurm_msg_t *source_msg, slurm_msg_type_t msg_type,
+
+ 	slurm_resp_msg_init(&resp_msg, source_msg, msg_type, data);
+
+-	if (source_msg->conmgr_fd) {
+-		rc = conmgr_queue_write_msg(source_msg->conmgr_fd, &resp_msg);
++	if (source_msg->conmgr_con) {
++		rc = conmgr_con_queue_write_msg(source_msg->conmgr_con,
++						&resp_msg);
+
+ 		if (rc)
+ 			log_flag(NET, "%s: [%s] write response RPC %s failure: %s",
+ 				 __func__,
+-				 conmgr_fd_get_name(source_msg->conmgr_fd),
++				 conmgr_con_get_name(source_msg->conmgr_con),
+ 				 rpc_num2string(msg_type), slurm_strerror(rc));
+
+ 		return rc;
+@@ -2697,6 +2698,7 @@ extern void slurm_free_msg_members(slurm_msg_t *msg)
+ 		slurm_free_msg_data(msg->msg_type, msg->data);
+ 		FREE_NULL_LIST(msg->ret_list);
+ 		xfree(msg->tls_cert);
++		conmgr_fd_free_ref(&msg->conmgr_con);
+ 	}
+ }
+
+diff --git a/src/common/slurm_protocol_defs.h b/src/common/slurm_protocol_defs.h
+index 07d7c427c1..a8f3ccc442 100644
+--- a/src/common/slurm_protocol_defs.h
++++ b/src/common/slurm_protocol_defs.h
+@@ -232,9 +232,11 @@ typedef struct job_record job_record_t;
+ #endif
+
+ /*
+- * Prototype for conmgr connection w/o including conmgr.h
++ * Prototype for conmgr connection w/o including conmgr.h to avoid recursive
++ * includes.
+  */
+ typedef struct conmgr_fd_s conmgr_fd_t;
++typedef struct conmgr_fd_ref_s conmgr_fd_ref_t;
+
+ /*****************************************************************************\
+  * core api configuration struct
+@@ -321,7 +323,7 @@ typedef struct slurm_msg {
+ 				 * normal connection. It should be filled in
+ 				 * with the connection before sending the
+ 				 * message so that it is handled correctly. */
+-	conmgr_fd_t *conmgr_fd; /* msg originates from conmgr connection. */
++	conmgr_fd_ref_t *conmgr_con; /* msg originates from conmgr connection */
+ 	void *data;
+ 	uint16_t flags;
+ 	uint8_t hash_index;	/* DON'T PACK: zero for normal communication.
+diff --git a/src/conmgr/rpc.c b/src/conmgr/rpc.c
+index effe24ed11..ef5ce25f0b 100644
+--- a/src/conmgr/rpc.c
++++ b/src/conmgr/rpc.c
+@@ -100,7 +100,7 @@ static int _try_parse_rpc(conmgr_fd_t *con, slurm_msg_t **msg_ptr)
+ 				msglen);
+ 	msg = xmalloc(sizeof(*msg));
+ 	slurm_msg_t_init(msg);
+-	msg->conmgr_fd = con;
++	msg->conmgr_con = conmgr_fd_new_ref(con);
+ 	memcpy(&msg->address, &con->address, sizeof(con->address));
+
+ 	log_flag_hex(NET_RAW, get_buf_data(rpc), size_buf(rpc),
+diff --git a/src/slurmctld/backup.c b/src/slurmctld/backup.c
+index 7484291b2e..8abe9450d0 100644
+--- a/src/slurmctld/backup.c
++++ b/src/slurmctld/backup.c
+@@ -415,7 +415,6 @@ extern int on_backup_msg(conmgr_fd_t *con, slurm_msg_t *msg, void *arg)
+ 	if (send_rc)
+ 		slurm_send_rc_msg(msg, error_code);
+
+-	conmgr_queue_close_fd(msg->conmgr_fd);
+ 	slurm_free_msg(msg);
+ 	return SLURM_SUCCESS;
+ }
+diff --git a/src/slurmctld/controller.c b/src/slurmctld/controller.c
+index 724784ba11..17edef3894 100644
+--- a/src/slurmctld/controller.c
++++ b/src/slurmctld/controller.c
+@@ -302,7 +302,8 @@ static void _send_reconfig_replies(void)
+ 	slurm_msg_t *msg = NULL;
+
+ 	while ((msg = list_pop(reconfig_reqs))) {
+-		/* Must avoid sending reply via msg->conmgr_fd */
++		/* Must avoid sending reply via msg->conmgr_con */
++		xassert(!msg->conmgr_con);
+ 		(void) slurm_send_rc_msg(msg, reconfig_rc);
+ 		conn_g_destroy(msg->tls_conn, true);
+ 		slurm_free_msg(msg);
+@@ -1543,11 +1544,19 @@ static int _on_primary_msg(conmgr_fd_t *con, slurm_msg_t *msg, void *arg)
+ 	if (rate_limit_exceeded(msg)) {
+ 		rc = slurm_send_rc_msg(msg, SLURMCTLD_COMMUNICATIONS_BACKOFF);
+ 		slurm_free_msg(msg);
+-	} else if ((rc = conmgr_queue_extract_con_fd(
+-			    con, _service_connection,
+-			    XSTRINGIFY(_service_connection), msg))) {
+-		error("%s: [%s] Extracting FDs failed: %s",
+-		      __func__, conmgr_fd_get_name(con), slurm_strerror(rc));
++	} else {
++		/*
++		 * The fd will be extracted from conmgr, so the conmgr
++		 * connection ref should be removed from msg first.
++		 */
++		conmgr_fd_free_ref(&msg->conmgr_con);
++
++		if ((rc = conmgr_queue_extract_con_fd(
++			     con, _service_connection,
++			     XSTRINGIFY(_service_connection), msg)))
++			error("%s: [%s] Extracting FDs failed: %s",
++			      __func__, conmgr_fd_get_name(con),
++			      slurm_strerror(rc));
+ 	}
+
+ 	return rc;
+@@ -1767,7 +1776,7 @@ static void _service_connection(conmgr_callback_args_t conmgr_args,
+ 	 * The fd was extracted from conmgr, so the conmgr connection is
+ 	 * invalid.
+ 	 */
+-	msg->conmgr_fd = NULL;
++	conmgr_fd_free_ref(&msg->conmgr_con);
+ 	if (tls_conn) {
+ 		msg->tls_conn = tls_conn;
+ 	} else {
+diff --git a/src/slurmd/slurmd/slurmd.c b/src/slurmd/slurmd/slurmd.c
+index 6f2a92611b..4b855dc6cb 100644
+--- a/src/slurmd/slurmd/slurmd.c
++++ b/src/slurmd/slurmd/slurmd.c
+@@ -697,7 +697,7 @@ static void *_service_msg(void *arg)
+ 	 * The fd was extracted from conmgr, so the conmgr connection is
+ 	 * invalid.
+ 	 */
+-	msg->conmgr_fd = NULL;
++	conmgr_fd_free_ref(&msg->conmgr_con);
+ 	if (args->tls_conn) {
+ 		msg->tls_conn = args->tls_conn;
+ 	} else {
