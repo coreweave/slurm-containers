@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/plugins/cgroup/v1/cgroup_v1.c b/src/plugins/cgroup/v1/cgroup_v1.c
+index 45528e5b4d..5d0a270ec3 100644
+--- a/src/plugins/cgroup/v1/cgroup_v1.c
++++ b/src/plugins/cgroup/v1/cgroup_v1.c
+@@ -431,66 +431,6 @@ static int _all_tasks_destroy(cgroup_ctl_type_t sub)
+ 	return rc;
+ }
+
+-static bool _is_root_path(char *path)
+-{
+-	bool rc = false;
+-	char *parent_path = NULL, file_path[PATH_MAX];
+-	parent_path = xdirname(path);
+-
+-	if (snprintf(file_path, PATH_MAX, "%s/cgroup.procs", parent_path) >=
+-	    PATH_MAX) {
+-		error("Could not generate cgroup path: %s", file_path);
+-		goto end;
+-	}
+-
+-	/* If cgroup.procs is not found one level up, we are in the root */
+-	if (access(file_path, F_OK))
+-		rc = true;
+-
+-end:
+-	xfree(parent_path);
+-	return rc;
+-}
+-
+-static void _remove_process_cg_limits(pid_t pid)
+-{
+-	xcgroup_t cg_cpu = { 0 };
+-	xcgroup_t cg_mem = { 0 };
+-	xcgroup_ns_t cpu_ns = { 0 };
+-	xcgroup_ns_t mem_ns = { 0 };
+-
+-	/* Try to reset cpuset limits */
+-	if (xcgroup_ns_create(&cpu_ns, "", g_cg_name[CG_CPUS])) {
+-		log_flag(CGROUP,"Not resetting cpuset, controller not found");
+-	} else if (xcgroup_ns_find_by_pid(&cpu_ns, &cg_cpu, pid)) {
+-		error("Cannot find slurmd cpu cgroup");
+-	} else if (!_is_root_path(cg_cpu.path)) {
+-		if (xcgroup_cpuset_init(&cg_cpu)) {
+-			error("Cannot reset slurmd cpuset limits");
+-		} else {
+-			log_flag(CGROUP, "Reset slurmd cpuset limits");
+-		}
+-	}
+-	common_cgroup_destroy(&cg_cpu);
+-	common_cgroup_ns_destroy(&cpu_ns);
+-
+-	/* Try to reset memory limits */
+-	if (xcgroup_ns_create(&mem_ns, "", g_cg_name[CG_MEMORY])) {
+-		log_flag(CGROUP,"Not resetting memory, controller not found");
+-	} else if (xcgroup_ns_find_by_pid(&mem_ns, &cg_mem, pid)) {
+-		error("Cannot find slurmd memory cgroup");
+-	} else if (!_is_root_path(cg_mem.path)) {
+-		if (common_cgroup_set_param(&cg_mem, "memory.limit_in_bytes",
+-					    "-1")) {
+-			error("Cannot reset slurmd memory limits");
+-		} else {
+-			log_flag(CGROUP, "Reset slurmd memory limits");
+-		}
+-	}
+-	common_cgroup_destroy(&cg_mem);
+-	common_cgroup_ns_destroy(&mem_ns);
+-}
+-
+ extern int init(void)
+ {
+ 	int i;
+@@ -522,8 +462,6 @@ extern int fini(void)
+
+ extern int cgroup_p_setup_scope(char *scope_path)
+ {
+-	if (running_in_slurmd())
+-		_remove_process_cg_limits(getpid());
+ 	return SLURM_SUCCESS;
+ }
+
