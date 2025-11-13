@@ -178,3 +178,10 @@ NULL, which was then dereferenced in subsequent operations. The fix ensures that
 context (with switch_count=0 or block_count=0) is retained instead of being freed and set to NULL.
 
 This patch can be removed once it has been fixed upstream.
+
+### 0021-revert-remove-cg-limits.patch
+
+This patch reverts the following commit to allow SlurmdSpecOverride to work in cgroupv1 setups by
+allowing the constraints detected by hwloc to persist.
+
+[Slurm Commit](https://github.com/SchedMD/slurm/commit/e4c8a1755e5a58523f85da02a7a4ca6ed057a4a2)
