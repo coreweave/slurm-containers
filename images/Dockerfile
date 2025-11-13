@@ -120,7 +120,7 @@ WORKDIR /build/libjwt-${LIBJWT_VERSION}
 # Prepare the build system
 RUN autoreconf -fi
 # Configure the build
-RUN ./configure --disable-doxygen-doc --disable-dependency-tracking --without-examples --prefix=/build/libjwt-install/
+RUN ./configure --enable-debug --disable-doxygen-doc --disable-dependency-tracking --without-examples --prefix=/build/libjwt-install/
 # Build libjwt
 RUN make
 # Install libjwt
