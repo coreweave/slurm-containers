@@ -15,7 +15,7 @@ ARG SLURM_PMIX_VERSION=pmix2
 ARG LIBNSSCACHE_VERSION=0.21
 # NSSCACHE_VERSION points to a commit fixing an occasionally incorrect assumption about a
 # `modifyTimestamp` field being present in responses.
-ARG NSSCACHE_VERSION=v0.4.0
+ARG NSSCACHE_VERSION=v0.6.0
 # This is currently only used to find the `dist-packages` location for the `nsscache` installation
 # TODO (SUNK-948): Do this dynamically
 ARG PYTHON_VERSION=3.10
