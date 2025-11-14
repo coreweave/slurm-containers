@@ -27,7 +27,7 @@ licenses.
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
   - [0020-empty-topology](#0020-empty-topology)
 
-## 0001-max-server-threads
+### 0001-max-server-threads
 
 This patch increases the maximum number of server threads allowed in `slurmctld`. The value here is
 roughly equivalent to the maximum number of nodes in a cluster. This increase prevents artificial
@@ -45,7 +45,7 @@ solution is to use fan-out. Although fan-out is now available with dynamic nodes
 experienced issues with this option. We prefer to increase the maximum number of server threads as a
 solution.
 
-## 0002-agent-thread
+### 0002-agent-thread
 
 This patch also increases the maximum threads available to process messages, with a slightly
 different effect than the `0001-max-server-threads` patch. This patch addresses the same
@@ -53,7 +53,7 @@ bottlenecking behavior and communication timeouts we observed in large clusters.
 patch, the upstream maintainers are not considering changing this value, and prefer reducing the
 controller load with fan-out.
 
-## 0003-revert-no-dynamic-sort
+### 0003-revert-no-dynamic-sort
 
 This patch was originally applied to the upstream code in response to
 [a bug we filed](https://support.schedmd.com/show_bug.cgi?id=16295), but was later reverted because
@@ -67,7 +67,7 @@ all users are familiar with using topology files.
 Since backing out the patch, the upstream project has not provided us with any further updates. If
 this is fixed in the upstream code, then this patch will no longer be required.
 
-## 0004-rest-get-node-default-flags
+### 0004-rest-get-node-default-flags
 
 This patch is a workaround for a bug in `slurmctld` that causes the controller to crash with a
 memory access error. We have
@@ -84,7 +84,7 @@ set the `SHOW_DETAILS` flag on the request. If we stop using the REST API for ou
 SUNK or the upstream project corrects one of the two existing bugs, then this patch is no longer
 necessary.
 
-## 0005-allow-persistent-none
+### 0005-allow-persistent-none
 
 This patch allows `slurmctld` to make persistent connections, except for the special cases of
 federation and accounting. Those two cases have behaviors that aren't desirable for a generic,
@@ -185,3 +185,16 @@ This patch reverts the following commit to allow SlurmdSpecOverride to work in c
 allowing the constraints detected by hwloc to persist.
 
 [Slurm Commit](https://github.com/SchedMD/slurm/commit/e4c8a1755e5a58523f85da02a7a4ca6ed057a4a2)
+
+### 0022-move-persist-conn-shutdown.patch
+
+This fixes a race condition when using persistent connections
+in `slurm_persist_conn_recv_server_fini` and `_service_connection`.
+When a shutdown is signaled via reconfigure, there is a race between the call to
+`pthread_detach` in `_service_connection` and `slurm_thread_join` in
+`slurm_persist_conn_recv_server_fini`. This patch adds a guard around `pthread_detach`
+to only run when we are not shutting down.
+
+Notes from `pthead_detch` man
+>       Once a thread has been detached, it can't be joined with
+>       pthread_join(3) or be made joinable again.

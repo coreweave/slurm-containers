@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/common/persist_conn.c b/src/common/persist_conn.c
+index 9a02946445..53f48714b3 100644
+--- a/src/common/persist_conn.c
++++ b/src/common/persist_conn.c
+@@ -373,7 +373,10 @@ static void *_service_connection(void *arg)
+ 	 * threads have accumulated, it will no longer be possible to create new
+ 	 * threads (or processes).
+ 	 */
+-	pthread_detach(pthread_self());
++
++	/* only detach if we arent shutting down */
++	if (!shutdown_time)
++		pthread_detach(pthread_self());
+
+ 	return NULL;
+ }
