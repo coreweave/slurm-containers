@@ -1,0 +1,75 @@
+diff --git a/src/slurmctld/controller.c b/src/slurmctld/controller.c
+index 724784ba11..ba6b732c70 100644
+--- a/src/slurmctld/controller.c
++++ b/src/slurmctld/controller.c
+@@ -309,6 +309,20 @@ static void _send_reconfig_replies(void)
+ 	}
+ }
+ 
++static void _send_reconfig_replies(void)
++{
++	slurm_msg_t *msg = NULL;
++
++	while ((msg = list_pop(reconfig_reqs))) {
++		/* Must avoid sending reply via msg->conmgr_fd */
++		xassert((msg->conn_fd >= 0) || msg->conn);
++
++		(void) slurm_send_rc_msg(msg, reconfig_rc);
++		fd_close(&msg->conn_fd);
++		slurm_free_msg(msg);
++	}
++}
++
+ static void _attempt_reconfig(void)
+ {
+ 	info("Attempting to reconfigure");
+@@ -322,7 +336,7 @@ static void _attempt_reconfig(void)
+ 	conmgr_quiesce(__func__);
+ 
+ 	/*
+-	 * Send RC to requesters in foreground mode now as slurmctld is about
++	 * Send RC to requestors in foreground mode now as slurmctld is about
+ 	 * to call exec() which will close connections.
+ 	 */
+ 	if (!daemonize && !under_systemd)
+@@ -332,6 +346,8 @@ static void _attempt_reconfig(void)
+ 
+ 	_send_reconfig_replies();
+ 
++	_send_reconfig_replies();
++
+ 	if (!reconfig_rc) {
+ 		info("Relinquishing control to new child");
+ 		_exit(0);
+@@ -1438,6 +1454,13 @@ extern void reconfigure_slurm(slurm_msg_t *msg)
+ 	list_append(reconfig_reqs, msg);
+ 
+ 	pthread_kill(pthread_self(), SIGHUP);
++
++	slurm_mutex_lock(&reconfig_mutex);
++	reconfig_threads++;
++	slurm_cond_wait(&reconfig_cond, &reconfig_mutex);
++	reconfig_threads--;
++	slurm_cond_broadcast(&reconfig_cond);
++	slurm_mutex_unlock(&reconfig_mutex);
+ }
+ 
+ static void _post_reconfig(void)
+diff --git a/src/slurmctld/proc_req.c b/src/slurmctld/proc_req.c
+index 9e77e66521..0a9760a91d 100644
+--- a/src/slurmctld/proc_req.c
++++ b/src/slurmctld/proc_req.c
+@@ -3154,6 +3154,13 @@ static void _slurm_rpc_reconfigure_controller(slurm_msg_t *msg)
+ 	} else
+ 		info("Processing Reconfiguration Request");
+ 
++	if (bit_ffs(reconfig_node_bitmap) >= 0) {
++		char *remaining_nodes = bitmap2node_name(reconfig_node_bitmap);
++		warning("Previous reconfigure request didn't complete on nodes: %s",
++			remaining_nodes);
++		xfree(remaining_nodes);
++	}
++
+ 	reconfigure_slurm(msg);
+ }
+ 
