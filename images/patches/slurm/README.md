@@ -198,3 +198,10 @@ to only run when we are not shutting down.
 Notes from `pthead_detch` man
 >       Once a thread has been detached, it can't be joined with
 >       pthread_join(3) or be made joinable again.
+
+### 0023-fail-bad-constraints.patch
+
+This fixes a BadConstraints issue when the server is going through
+node changes, and the job doesn't currently have the necessary resources
+to satisfy all the segment requirements. The scheduler shouldn't
+hold the job.
