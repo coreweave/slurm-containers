@@ -148,7 +148,7 @@ RUN find /build/patches/slurm -type f -name *.patch -print0 | \
 ARG SLURM_PMIX_VERSION
 WORKDIR /build/slurm-$SLURM_VERSION
 RUN arch=$(uname -m) && \
-  ./configure --enable-debug --prefix=/usr --libdir=/usr/lib/${arch}-linux-gnu --sysconfdir=/etc/slurm \
+  ./configure --prefix=/usr --libdir=/usr/lib/${arch}-linux-gnu --sysconfdir=/etc/slurm \
   --enable-pam --with-pam_dir=/usr/lib/${arch}-linux-gnu/security \
   --with-hdf5 --disable-glibtest --disable-gtktest \
   --with-pmix=/usr/lib/${arch}-linux-gnu/$SLURM_PMIX_VERSION \
