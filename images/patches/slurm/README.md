@@ -201,7 +201,6 @@ Notes from `pthead_detch` man
 
 ### 0023-fail-bad-constraints.patch
 
-This fixes a BadConstraints issue when the server is going through
-node changes, and the job doesn't currently have the necessary resources
-to satisfy all the segment requirements. The scheduler shouldn't
-hold the job.
+In SLURM when a job fails due to not being able to meet the segment size requirements, the reason is `FAIL_BAD_CONSTRAINTS`. When a job is in this state, it is set to priority = 0, which is a held state. The scheduler will skip evaluating the job on future runs.
+
+This patch is to change it so that jobs that fail for unmet segment size requirements to not hold the job. So that if there are topology changes to the cluster, that can satisfy the job requirements, the job can still schedule. This will set the job reason to `Reason=Resources` instead of `Reason=BadConstraints`.
