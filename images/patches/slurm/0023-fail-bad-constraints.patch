@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2025 CoreWeave, Inc.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/slurmctld/job_scheduler.c b/src/slurmctld/job_scheduler.c
+index 37d8332415..4ee5c6ea01 100644
+--- a/src/slurmctld/job_scheduler.c
++++ b/src/slurmctld/job_scheduler.c
+@@ -1937,6 +1937,15 @@ skip_start:
+ 			debug("%pJ non-runnable in partition %s: %s",
+ 			      job_ptr, job_ptr->part_ptr->name,
+ 			      slurm_strerror(error_code));
++		} else if ((error_code ==
++			    ESLURM_REQUESTED_NODE_CONFIG_UNAVAILABLE) &&
++			   (job_ptr->state_reason == WAIT_RESOURCES)
++		) {
++			sched_info("%pJ node resources not satisfied", job_ptr);
++			/*
++			 * Future node updates may satisfy the resources, so
++			 * do not hold the job.
++			 */
+ 		} else if ((error_code ==
+ 			    ESLURM_REQUESTED_NODE_CONFIG_UNAVAILABLE) &&
+ 			   (job_ptr->state_reason == FAIL_CONSTRAINTS)) {
