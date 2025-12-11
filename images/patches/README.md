@@ -240,3 +240,10 @@ The race condition is described in the [source code].
 [5a1c0174]: https://github.com/SchedMD/slurm/commit/5a1c017420123f0978a559788723749be043e2c8
 [source code]: https://github.com/SchedMD/slurm/blob/slurm-24-11-5-1/src/plugins/cgroup/v2/cgroup_v2.c#L1387-L1394
 [no internal process constraint]: https://docs.kernel.org/admin-guide/cgroup-v2.html#no-internal-process-constraint
+>>>>>>> e364bad (fix: Backport slurmctld segfault patch):images/patches/slurm/README.md
+
+### 0020-slurmctld-segfault-epilog.patch
+
+This patch backports the following commits to address an issue with slurmctld segfaults
+[SlurmCommit](https://github.com/SchedMD/slurm/commit/3d9f9647b416c47a238600e08b2887e4b8b93c2e)
+>>>>>>> 13b5123 (fix: Backport slurmctld segfault patch):images/patches/README.md
