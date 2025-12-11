@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+
 diff --git a/src/slurmd/common/xcpuinfo.c b/src/slurmd/common/xcpuinfo.c
 index c970828918..28ec2663c0 100644
 --- a/src/slurmd/common/xcpuinfo.c

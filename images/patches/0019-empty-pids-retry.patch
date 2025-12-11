@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+
 diff --git a/src/plugins/cgroup/v2/cgroup_v2.c b/src/plugins/cgroup/v2/cgroup_v2.c
 index be351d32a1..453bb0f57a 100644
 --- a/src/plugins/cgroup/v2/cgroup_v2.c
