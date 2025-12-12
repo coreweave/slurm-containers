@@ -1,0 +1,325 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+
+diff --git a/src/common/job_record.c b/src/common/job_record.c
+index bc71bf906f..4f974e42d8 100644
+--- a/src/common/job_record.c
++++ b/src/common/job_record.c
+@@ -277,10 +277,10 @@ extern void job_record_delete(void *job_entry)
+ 	FREE_NULL_LIST(job_ptr->het_job_list);
+ 	xfree(job_ptr->partition);
+ 	FREE_NULL_LIST(job_ptr->part_ptr_list);
+-	if (job_ptr->part_prio) {
+-		xfree(job_ptr->part_prio->priority_array);
+-		xfree(job_ptr->part_prio->priority_array_names);
+-		xfree(job_ptr->part_prio);
++	if (job_ptr->prio_mult) {
++		xfree(job_ptr->prio_mult->priority_array);
++		xfree(job_ptr->prio_mult->priority_array_names);
++		xfree(job_ptr->prio_mult);
+ 	}
+ 	slurm_destroy_priority_factors(job_ptr->prio_factors);
+ 	FREE_NULL_LIST(job_ptr->qos_list);
+diff --git a/src/common/job_record.h b/src/common/job_record.h
+index 6312abf439..cb70dd9087 100644
+--- a/src/common/job_record.h
++++ b/src/common/job_record.h
+@@ -390,7 +390,8 @@ struct job_record {
+ 	bool part_nodes_missing;	/* set if job's nodes removed from this
+ 					 * partition */
+ 	part_record_t *part_ptr;	/* pointer to the partition record */
+-	priority_mult_t *part_prio;	/* partition based priority */
++	priority_mult_t *prio_mult;	/* priority based on requested partition
++					 * and qos */
+ 	time_t pre_sus_time;		/* time job ran prior to last suspend */
+ 	time_t preempt_time;		/* job preemption signal time */
+ 	bool preempt_in_progress;	/* Preemption of other jobs in progress
+diff --git a/src/plugins/priority/multifactor/priority_multifactor.c b/src/plugins/priority/multifactor/priority_multifactor.c
+index 5c72725c5a..1ad1c680c6 100644
+--- a/src/plugins/priority/multifactor/priority_multifactor.c
++++ b/src/plugins/priority/multifactor/priority_multifactor.c
+@@ -539,9 +539,9 @@ static int _priority_each_qos(void *object, void *arg)
+ 		priority_part = (double) tmp_64;
+ 	}
+ 	if (((flags & PRIORITY_FLAGS_INCR_ONLY) == 0) ||
+-	    (job_ptr->part_prio->priority_array[args->counter] <
++	    (job_ptr->prio_mult->priority_array[args->counter] <
+ 	     (uint32_t) priority_part)) {
+-		job_ptr->part_prio->priority_array[args->counter] =
++		job_ptr->prio_mult->priority_array[args->counter] =
+ 			(uint32_t) priority_part;
+ 	}
+ 	if (slurm_conf.debug_flags & DEBUG_FLAG_PRIO) {
+@@ -551,12 +551,12 @@ static int _priority_each_qos(void *object, void *arg)
+ 			xstrfmtcat(args->multi_prio_str,
+ 				   "%s/%s=%u", args->part_ptr->name,
+ 				   qos_ptr->name,
+-				   job_ptr->part_prio->
++				   job_ptr->prio_mult->
+ 				   priority_array[args->counter]);
+ 		else
+ 			xstrfmtcat(args->multi_prio_str,
+ 				   "%s=%u", args->part_ptr->name,
+-				   job_ptr->part_prio->
++				   job_ptr->prio_mult->
+ 				   priority_array[args->counter]);
+ 	}
+
+@@ -688,10 +688,10 @@ static uint32_t _get_priority_internal(time_t start_time,
+ 	 * Free after transitioning from multi-part/qos job to single part job.
+ 	 */
+ 	if (!job_ptr->part_ptr_list && !job_ptr->qos_list &&
+-	    job_ptr->part_prio) {
+-		xfree(job_ptr->part_prio->priority_array);
+-		xfree(job_ptr->part_prio->priority_array_names);
+-		xfree(job_ptr->part_prio);
++	    job_ptr->prio_mult) {
++		xfree(job_ptr->prio_mult->priority_array);
++		xfree(job_ptr->prio_mult->priority_array_names);
++		xfree(job_ptr->prio_mult);
+ 	}
+
+ 	if (job_ptr->part_ptr_list || job_ptr->qos_list) {
+@@ -700,20 +700,20 @@ static uint32_t _get_priority_internal(time_t start_time,
+ 			.job_ptr = job_ptr
+ 		};
+
+-		if (!job_ptr->part_prio)
+-			job_ptr->part_prio =
+-				xmalloc(sizeof(*job_ptr->part_prio));
++		if (!job_ptr->prio_mult)
++			job_ptr->prio_mult =
++				xmalloc(sizeof(*job_ptr->prio_mult));
+
+-		if (job_ptr->part_prio &&
+-		    (!job_ptr->part_prio->priority_array ||
+-		     (job_ptr->part_prio->last_update < last_part_update))) {
++		if (job_ptr->prio_mult &&
++		    (!job_ptr->prio_mult->priority_array ||
++		     (job_ptr->prio_mult->last_update < last_part_update))) {
+
+-			xfree(job_ptr->part_prio->priority_array);
++			xfree(job_ptr->prio_mult->priority_array);
+ 			if (job_ptr->part_ptr_list) {
+ 				i = list_count(job_ptr->part_ptr_list);
+ 				/* part_ptr_list is already sorted */
+-				xfree(job_ptr->part_prio->priority_array_names);
+-				job_ptr->part_prio->priority_array_names =
++				xfree(job_ptr->prio_mult->priority_array_names);
++				job_ptr->prio_mult->priority_array_names =
+ 					part_list_to_xstr(
+ 						job_ptr->part_ptr_list);
+ 			}
+@@ -726,10 +726,10 @@ static uint32_t _get_priority_internal(time_t start_time,
+ 					i = qos_count;
+ 			}
+
+-			job_ptr->part_prio->priority_array =
++			job_ptr->prio_mult->priority_array =
+ 				xcalloc(i, sizeof(uint32_t));
+
+-			job_ptr->part_prio->last_update = time(NULL);
++			job_ptr->prio_mult->last_update = time(NULL);
+ 		}
+
+ 		if (job_ptr->part_ptr_list)
+diff --git a/src/plugins/sched/backfill/backfill.c b/src/plugins/sched/backfill/backfill.c
+index c9eb894a1f..7ef36f9551 100644
+--- a/src/plugins/sched/backfill/backfill.c
++++ b/src/plugins/sched/backfill/backfill.c
+@@ -1363,11 +1363,11 @@ static uint32_t _hetjob_calc_prio(job_record_t *het_leader)
+ 	iter = list_iterator_create(het_leader->het_job_list);
+ 	while ((het_comp = list_next(iter))) {
+ 		if (het_comp->part_ptr_list &&
+-		    het_comp->part_prio &&
+-		    het_comp->part_prio->priority_array &&
++		    het_comp->prio_mult &&
++		    het_comp->prio_mult->priority_array &&
+ 		    (nparts = list_count(het_comp->part_ptr_list))) {
+ 			for (i = 0; i < nparts; i++) {
+-				tmp = het_comp->part_prio->priority_array[i];
++				tmp = het_comp->prio_mult->priority_array[i];
+ 				if (tmp == 0) { /* job held */
+ 					prio = 0;
+ 					break;
+diff --git a/src/slurmctld/job_mgr.c b/src/slurmctld/job_mgr.c
+index fc46c38956..cf3fcda529 100644
+--- a/src/slurmctld/job_mgr.c
++++ b/src/slurmctld/job_mgr.c
+@@ -3560,22 +3560,25 @@ extern job_record_t *job_array_split(job_record_t *job_ptr, bool list_add)
+ 	job_ptr_pend->part_ptr_list = part_list_copy(job_ptr->part_ptr_list);
+ 	/* On jobs that are held the priority_array isn't set up yet,
+ 	 * so check to see if it exists before copying. */
+-	if (job_ptr->part_ptr_list &&
+-	    job_ptr->part_prio) {
+-		job_ptr_pend->part_prio =
+-			xmalloc(sizeof(*job_ptr_pend->part_prio));
+-
+-		if (job_ptr->part_prio->priority_array) {
+-			i = list_count(job_ptr->part_ptr_list);
+-			job_ptr_pend->part_prio->priority_array =
+-				xcalloc(i, sizeof(uint32_t));
+-			memcpy(job_ptr_pend->part_prio->priority_array,
+-			       job_ptr->part_prio->priority_array,
+-			       i * sizeof(uint32_t));
+-		}
+-
+-		job_ptr_pend->part_prio->priority_array_names =
+-			xstrdup(job_ptr->part_prio->priority_array_names);
++	if ((job_ptr->part_ptr_list || job_ptr->qos_list) &&
++	    job_ptr->prio_mult) {
++		job_ptr_pend->prio_mult =
++			xmalloc(sizeof(*job_ptr_pend->prio_mult));
++
++		if (job_ptr->prio_mult->priority_array) {
++			i = xsize(job_ptr->prio_mult->priority_array);
++			job_ptr_pend->prio_mult->priority_array = xmalloc(i);
++			memcpy(job_ptr_pend->prio_mult->priority_array,
++			       job_ptr->prio_mult->priority_array, i);
++		}
++
++		job_ptr_pend->prio_mult->priority_array_names =
++			xstrdup(job_ptr->prio_mult->priority_array_names);
++	} else if (job_ptr->prio_mult) {
++		/* this should never happen */
++		error("%s: prio_mult is set without part_ptr_list or qos_list, setting prio_mult to NULL.",
++		      __func__);
++		job_ptr_pend->prio_mult = NULL;
+ 	}
+ 	if (job_ptr->qos_list)
+ 		job_ptr_pend->qos_list = list_shallow_copy(job_ptr->qos_list);
+@@ -10387,12 +10390,12 @@ void pack_job(job_record_t *dump_job_ptr, uint16_t show_flags, buf_t *buffer,
+ 		pack_time(start_time, buffer);
+ 		pack_time(end_time, buffer);
+
+-		if (dump_job_ptr->part_prio) {
+-			pack32_array(dump_job_ptr->part_prio->priority_array,
+-				     (dump_job_ptr->part_prio->priority_array) ?
++		if (dump_job_ptr->prio_mult) {
++			pack32_array(dump_job_ptr->prio_mult->priority_array,
++				     (dump_job_ptr->prio_mult->priority_array) ?
+ 				     list_count(dump_job_ptr->part_ptr_list) :
+ 				     0, buffer);
+-			packstr(dump_job_ptr->part_prio->priority_array_names,
++			packstr(dump_job_ptr->prio_mult->priority_array_names,
+ 				buffer);
+ 		} else {
+ 			packnull(buffer);
+@@ -10577,12 +10580,12 @@ void pack_job(job_record_t *dump_job_ptr, uint16_t show_flags, buf_t *buffer,
+ 		pack_time(dump_job_ptr->last_sched_eval, buffer);
+ 		pack_time(dump_job_ptr->preempt_time, buffer);
+ 		pack32(dump_job_ptr->priority, buffer);
+-		if (dump_job_ptr->part_prio) {
+-			pack32_array(dump_job_ptr->part_prio->priority_array,
+-				     (dump_job_ptr->part_prio->priority_array) ?
++		if (dump_job_ptr->prio_mult) {
++			pack32_array(dump_job_ptr->prio_mult->priority_array,
++				     (dump_job_ptr->prio_mult->priority_array) ?
+ 				     list_count(dump_job_ptr->part_ptr_list) :
+ 				     0, buffer);
+-			packstr(dump_job_ptr->part_prio->priority_array_names,
++			packstr(dump_job_ptr->prio_mult->priority_array_names,
+ 				buffer);
+ 		} else {
+ 			packnull(buffer);
+@@ -12114,11 +12117,11 @@ static void _hold_job_rec(job_record_t *job_ptr, uid_t uid)
+ 		acct_policy_remove_accrue_time(job_ptr, false);
+
+ 	if (job_ptr->part_ptr_list &&
+-	    job_ptr->part_prio &&
+-	    job_ptr->part_prio->priority_array) {
++	    job_ptr->prio_mult &&
++	    job_ptr->prio_mult->priority_array) {
+ 		j = list_count(job_ptr->part_ptr_list);
+ 		for (i = 0; i < j; i++) {
+-			job_ptr->part_prio->priority_array[i] = 0;
++			job_ptr->prio_mult->priority_array[i] = 0;
+ 		}
+ 	}
+ 	sched_info("%s: hold on %pJ by uid %u", __func__, job_ptr, uid);
+@@ -13351,8 +13354,8 @@ static int _update_job(job_record_t *job_ptr, job_desc_msg_t *job_desc,
+ 		rebuild_job_part_list(job_ptr);
+
+ 		/* Rebuilt in priority/multifactor plugin */
+-		if (job_ptr->part_prio)
+-			xfree(job_ptr->part_prio->priority_array);
++		if (job_ptr->prio_mult)
++			xfree(job_ptr->prio_mult->priority_array);
+
+ 		info("%s: setting partition to %s for %pJ",
+ 		     __func__, job_desc->partition, job_ptr);
+@@ -13827,12 +13830,12 @@ static int _update_job(job_record_t *job_ptr, job_desc_msg_t *job_desc,
+ 					error_code = ESLURM_PRIO_RESET_FAIL;
+ 				job_ptr->priority = job_desc->priority;
+ 				if (job_ptr->part_ptr_list &&
+-				    job_ptr->part_prio &&
+-				    job_ptr->part_prio->priority_array) {
++				    job_ptr->prio_mult &&
++				    job_ptr->prio_mult->priority_array) {
+ 					int i, j = list_count(
+ 						job_ptr->part_ptr_list);
+ 					for (i = 0; i < j; i++) {
+-						job_ptr->part_prio->
++						job_ptr->prio_mult->
+ 							priority_array[i] =
+ 							job_desc->priority;
+ 					}
+diff --git a/src/slurmctld/job_scheduler.c b/src/slurmctld/job_scheduler.c
+index b971102da0..fc5ae5d0bd 100644
+--- a/src/slurmctld/job_scheduler.c
++++ b/src/slurmctld/job_scheduler.c
+@@ -608,9 +608,9 @@ static int _build_job_queue_for_qos(void *x, void *arg)
+ 		return 0;
+
+ 	setup_job->job_prio_pairs++;
+-	if (job_ptr->part_prio && job_ptr->part_prio->priority_array) {
++	if (job_ptr->prio_mult && job_ptr->prio_mult->priority_array) {
+ 		_job_queue_append(setup_job->job_queue, job_ptr,
+-				  job_ptr->part_prio->
++				  job_ptr->prio_mult->
+ 				  priority_array[setup_job->prio_inx]);
+ 	} else {
+ 		_job_queue_append(setup_job->job_queue, job_ptr,
+@@ -2317,16 +2317,16 @@ extern int sort_job_queue2(void *x, void *y)
+ 			p1 = details->priority;
+ 		else {
+ 			if (job_rec1->job_ptr->part_ptr_list &&
+-			    job_rec1->job_ptr->part_prio &&
+-			    job_rec1->job_ptr->part_prio->priority_array)
++			    job_rec1->job_ptr->prio_mult &&
++			    job_rec1->job_ptr->prio_mult->priority_array)
+ 				p1 = job_rec1->priority;
+ 			else
+ 				p1 = job_rec1->job_ptr->priority;
+ 		}
+ 	} else {
+ 		if (job_rec1->job_ptr->part_ptr_list &&
+-		    job_rec1->job_ptr->part_prio &&
+-		    job_rec1->job_ptr->part_prio->priority_array)
++		    job_rec1->job_ptr->prio_mult &&
++		    job_rec1->job_ptr->prio_mult->priority_array)
+ 			p1 = job_rec1->priority;
+ 		else
+ 			p1 = job_rec1->job_ptr->priority;
+@@ -2339,16 +2339,16 @@ extern int sort_job_queue2(void *x, void *y)
+ 			p2 = details->priority;
+ 		else {
+ 			if (job_rec2->job_ptr->part_ptr_list &&
+-			    job_rec2->job_ptr->part_prio &&
+-			    job_rec2->job_ptr->part_prio->priority_array)
++			    job_rec2->job_ptr->prio_mult &&
++			    job_rec2->job_ptr->prio_mult->priority_array)
+ 				p2 = job_rec2->priority;
+ 			else
+ 				p2 = job_rec2->job_ptr->priority;
+ 		}
+ 	} else {
+ 		if (job_rec2->job_ptr->part_ptr_list &&
+-		    job_rec2->job_ptr->part_prio &&
+-		    job_rec2->job_ptr->part_prio->priority_array)
++		    job_rec2->job_ptr->prio_mult &&
++		    job_rec2->job_ptr->prio_mult->priority_array)
+ 			p2 = job_rec2->priority;
+ 		else
+ 			p2 = job_rec2->job_ptr->priority;
