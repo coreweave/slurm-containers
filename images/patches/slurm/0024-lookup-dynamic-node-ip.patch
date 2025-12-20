@@ -5,7 +5,7 @@ index a074c71bc2..996bcf5772 100644
 @@ -140,11 +140,45 @@ static int	_update_node_gres(char *node_names, char *gres);
  static int	_update_node_weight(char *node_names, uint32_t weight);
  static bool 	_valid_node_state_change(uint32_t old, uint32_t new);
- 
+
 -static char *_get_msg_hostname(slurm_msg_t *msg)
 +/*
 + * Get the communication address for an incoming message.
@@ -19,7 +19,7 @@ index a074c71bc2..996bcf5772 100644
  {
  	slurm_addr_t *addr = &msg->address;
  	char *name = NULL;
- 
+
 +	/* Try DNS lookup on hostname first */
 +	if (hostname && hostname[0]) {
 +		struct addrinfo *dns_result;
@@ -57,9 +57,9 @@ index a074c71bc2..996bcf5772 100644
 -		char *comm_name = _get_msg_hostname(slurm_msg);
 +		/* Get IP of slurmd - try DNS on hostname first */
 +		char *comm_name = _get_msg_hostname(slurm_msg, reg_msg->hostname);
- 
+
  		set_node_comm_name(node_ptr, comm_name, reg_msg->hostname);
- 
+
 @@ -4950,9 +4984,10 @@ extern int create_dynamic_reg_node(slurm_msg_t *msg)
  	/*
  	 * Always resolve comm_name in slurmctld as hostname may resolve
