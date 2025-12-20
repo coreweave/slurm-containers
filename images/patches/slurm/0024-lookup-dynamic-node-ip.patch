@@ -1,0 +1,74 @@
+diff --git a/src/slurmctld/node_mgr.c b/src/slurmctld/node_mgr.c
+index a074c71bc2..996bcf5772 100644
+--- a/src/slurmctld/node_mgr.c
++++ b/src/slurmctld/node_mgr.c
+@@ -140,11 +140,45 @@ static int	_update_node_gres(char *node_names, char *gres);
+ static int	_update_node_weight(char *node_names, uint32_t weight);
+ static bool 	_valid_node_state_change(uint32_t old, uint32_t new);
+ 
+-static char *_get_msg_hostname(slurm_msg_t *msg)
++/*
++ * Get the communication address for an incoming message.
++ * For dynamic nodes, try DNS lookup on the provided hostname first.
++ * This allows containerized environments (e.g., Kubernetes) to use
++ * DNS/Services for node addressing instead of relying on the TCP
++ * connection's source IP. Falls back to connection source IP if
++ * DNS resolution fails or hostname is not provided.
++ */
++static char *_get_msg_hostname(slurm_msg_t *msg, const char *hostname)
+ {
+ 	slurm_addr_t *addr = &msg->address;
+ 	char *name = NULL;
+ 
++	/* Try DNS lookup on hostname first */
++	if (hostname && hostname[0]) {
++		struct addrinfo *dns_result;
++		dns_result = xgetaddrinfo_port(hostname,
++					       slurm_conf.slurmd_port);
++		if (dns_result) {
++			name = xmalloc(INET6_ADDRSTRLEN);
++			if (dns_result->ai_family == AF_INET6) {
++				struct sockaddr_in6 *sin6 =
++					(struct sockaddr_in6 *)dns_result->ai_addr;
++				inet_ntop(AF_INET6, &sin6->sin6_addr,
++					  name, INET6_ADDRSTRLEN);
++			} else {
++				struct sockaddr_in *sin =
++					(struct sockaddr_in *)dns_result->ai_addr;
++				inet_ntop(AF_INET, &sin->sin_addr,
++					  name, INET6_ADDRSTRLEN);
++			}
++			freeaddrinfo(dns_result);
++			debug2("%s: Resolved hostname %s to %s",
++			       __func__, hostname, name);
++			return name;
++		}
++	}
++
++	/* Fall back to connection source IP */
+ 	if (addr->ss_family == AF_UNSPEC) {
+ 		int fd = conn_g_get_fd(msg->tls_conn);
+ 		(void) slurm_get_peer_addr(fd, addr);
+@@ -3697,8 +3731,8 @@ extern int validate_node_specs(slurm_msg_t *slurm_msg, bool *newly_up)
+ 	if (IS_NODE_CLOUD(node_ptr) ||
+ 	    IS_NODE_DYNAMIC_FUTURE(node_ptr) ||
+ 	    IS_NODE_DYNAMIC_NORM(node_ptr)) {
+-		/* Get IP of slurmd */
+-		char *comm_name = _get_msg_hostname(slurm_msg);
++		/* Get IP of slurmd - try DNS on hostname first */
++		char *comm_name = _get_msg_hostname(slurm_msg, reg_msg->hostname);
+ 
+ 		set_node_comm_name(node_ptr, comm_name, reg_msg->hostname);
+ 
+@@ -4950,9 +4984,10 @@ extern int create_dynamic_reg_node(slurm_msg_t *msg)
+ 	/*
+ 	 * Always resolve comm_name in slurmctld as hostname may resolve
+ 	 * differently here than on the compute node that sent the RPC.
++	 * Try DNS lookup on hostname first for containerized environments.
+ 	 */
+ 	xfree(node_ptr->comm_name);
+-	if (!(node_ptr->comm_name = _get_msg_hostname(msg)))
++	if (!(node_ptr->comm_name = _get_msg_hostname(msg, reg_msg->hostname)))
+ 		node_ptr->comm_name = xstrdup(reg_msg->hostname);
+ 	xfree(node_ptr->node_hostname);
+ 	node_ptr->node_hostname = xstrdup(reg_msg->hostname);
