@@ -1,8 +1,16 @@
 diff --git a/src/slurmctld/node_mgr.c b/src/slurmctld/node_mgr.c
-index a074c71bc2..996bcf5772 100644
+index a074c71bc2..54fd46d29d 100644
 --- a/src/slurmctld/node_mgr.c
 +++ b/src/slurmctld/node_mgr.c
-@@ -140,11 +140,45 @@ static int	_update_node_gres(char *node_names, char *gres);
+@@ -66,6 +66,7 @@
+ #include "src/common/slurm_resource_info.h"
+ #include "src/common/state_save.h"
+ #include "src/common/timers.h"
++#include "src/common/util-net.h"
+ #include "src/common/xassert.h"
+ #include "src/common/xstring.h"
+
+@@ -140,11 +141,45 @@ static int	_update_node_gres(char *node_names, char *gres);
  static int	_update_node_weight(char *node_names, uint32_t weight);
  static bool 	_valid_node_state_change(uint32_t old, uint32_t new);
 
@@ -49,7 +57,7 @@ index a074c71bc2..996bcf5772 100644
  	if (addr->ss_family == AF_UNSPEC) {
  		int fd = conn_g_get_fd(msg->tls_conn);
  		(void) slurm_get_peer_addr(fd, addr);
-@@ -3697,8 +3731,8 @@ extern int validate_node_specs(slurm_msg_t *slurm_msg, bool *newly_up)
+@@ -3697,8 +3732,8 @@ extern int validate_node_specs(slurm_msg_t *slurm_msg, bool *newly_up)
  	if (IS_NODE_CLOUD(node_ptr) ||
  	    IS_NODE_DYNAMIC_FUTURE(node_ptr) ||
  	    IS_NODE_DYNAMIC_NORM(node_ptr)) {
@@ -60,7 +68,7 @@ index a074c71bc2..996bcf5772 100644
 
  		set_node_comm_name(node_ptr, comm_name, reg_msg->hostname);
 
-@@ -4950,9 +4984,10 @@ extern int create_dynamic_reg_node(slurm_msg_t *msg)
+@@ -4950,9 +4985,10 @@ extern int create_dynamic_reg_node(slurm_msg_t *msg)
  	/*
  	 * Always resolve comm_name in slurmctld as hostname may resolve
  	 * differently here than on the compute node that sent the RPC.
