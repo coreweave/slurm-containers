@@ -3,10 +3,14 @@
 # SPDX-PackageName: slurm-containers
 
 name: "Determine Tag"
-description: "Determine the tag for SUNK images based on the commit SHA and any provided tag suffix."
+description: "Determine the tag for SUNK images based on version tag, commit SHA, and any provided tag suffix."
 inputs:
   tag-suffix:
     description: "Suffix to append to the tag."
+    required: false
+    default: ""
+  version-tag:
+    description: "Version tag to use (for releases). If not provided, uses commit SHA."
     required: false
     default: ""
 
@@ -18,14 +22,18 @@ outputs:
 runs:
   using: "composite"
   steps:
-    # Github actions does not provide a short sha so we need to compute it
     - name: Determine Tag or SHA
       id: determine-tag
       shell: bash
       env:
         LAST_COMMIT_SHA: ${{ github.sha }}
       run: |
-        _tag=${LAST_COMMIT_SHA:0:8}
+        # Use version tag if provided, otherwise use short SHA
+        if [ -n "${{ inputs.version-tag }}" ]; then
+          _tag="${{ inputs.version-tag }}"
+        else
+          _tag=${LAST_COMMIT_SHA:0:8}
+        fi
 
         # Append suffix if provided
         if [ -n "${{ inputs.tag-suffix }}" ]; then
@@ -34,5 +42,6 @@ runs:
 
         echo "::debug::tag: ${_tag}"
         echo "::debug::tag-suffix: ${{ inputs.tag-suffix}}"
+        echo "::debug::version-tag: ${{ inputs.version-tag}}"
 
         echo "tag=${_tag}" >> $GITHUB_OUTPUT

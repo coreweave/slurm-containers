@@ -17,6 +17,10 @@ inputs:
     description: "Suffix to append to the image tag for both base and extras image."
     required: false
     default: ""
+  version-tag:
+    description: "Version tag to use (for releases). If not provided, uses commit SHA."
+    required: false
+    default: ""
   dockerfile:
     description: "Filepath resolving to the Dockerfile to use. Extras image will be built from <dockerfile>.extras."
     required: true
@@ -25,14 +29,10 @@ inputs:
     description: "The Doppler token to fetch the BuildKit client certs (e.g. secrets.ORG_BUILDKIT_CLIENT_TOKEN)."
     required: true
     default: ""
-  cloudsmith-repo-name:
-    description: "The name of the Cloudsmith repository to use."
-    required: true
-    default: ""
-  cloudsmith-service:
-    description: "The name of the Cloudsmith service account to use."
-    required: true
-    default: ""
+  registry-path:
+    description: "Path within the registry (e.g. 'dev' for CI builds, empty for releases)."
+    required: false
+    default: "dev"
   github-token:
     description: "The GitHub token to use for authentication."
     required: true
@@ -80,10 +80,10 @@ runs:
         context: ${{ inputs.context }}
         image-name: ${{ inputs.image-name }}
         image-tag-suffix: ${{ inputs.image-tag-suffix }}
+        version-tag: ${{ inputs.version-tag }}
         dockerfile: ${{ inputs.dockerfile }}
         doppler-token: ${{ inputs.doppler-token }}
-        cloudsmith-repo-name: ${{ inputs.cloudsmith-repo-name }}
-        cloudsmith-service: ${{ inputs.cloudsmith-service }}
+        registry-path: ${{ inputs.registry-path }}
         github-token: ${{ inputs.github-token }}
         buildx-args: |
           --target controller
@@ -97,10 +97,10 @@ runs:
         context: ${{ inputs.context }}
         image-name: ${{ inputs.image-name }}-extras
         image-tag-suffix: ${{ inputs.image-tag-suffix }}
+        version-tag: ${{ inputs.version-tag }}
         dockerfile: ${{ inputs.dockerfile }}
         doppler-token: ${{ inputs.doppler-token }}
-        cloudsmith-repo-name: ${{ inputs.cloudsmith-repo-name }}
-        cloudsmith-service: ${{ inputs.cloudsmith-service }}
+        registry-path: ${{ inputs.registry-path }}
         github-token: ${{ inputs.github-token }}
         buildx-args: |
           --target controller-extras
