@@ -6,20 +6,22 @@ name: Build Images
 on:
   workflow_call:
     inputs:
-      target-repo-name:
+      registry-path:
+        description: "Path within the registry (e.g. 'dev' for CI builds, empty for releases)."
         required: false
         type: string
-        default: "${{ vars.CLOUDSMITH_REPO_NAME }}-dev"
+        default: "dev"
+      version-tag:
+        description: "Version tag to use (for releases). If not provided, uses commit SHA."
+        required: false
+        type: string
+        default: ""
     outputs:
       built_images_json:
         description: "JSON object containing all built images with their names and tags."
         value: ${{ jobs.compile-image-names.outputs.built_images_json }}
     secrets:
       ORG_BUILDKIT_CLIENT_TOKEN:
-        required: true
-      GL_SUNK_REGISTRY_USER:
-        required: true
-      GL_SUNK_REGISTRY_TOKEN:
         required: true
 
 permissions:
@@ -28,9 +30,8 @@ permissions:
 
 env:
   ## Registry vars
-  CI_REGISTRY: docker.cloudsmith.io
-  OUTPUT_CI_REGISTRY: docker.artifacts.coreweave.com
-  CI_CACHE_IMAGE: ghcr.io/coreweave/slurm-containers-dev/cache
+  CI_REGISTRY: ghcr.io/coreweave/slurm-containers
+  CI_CACHE_IMAGE: ghcr.io/coreweave/slurm-containers/cache
   ## Image name artifact filenames
   controller_image_names_artifact_file: controller_based_image_names
   slurmd_image_names_artifact_file: slurmd_cw_image_names
@@ -75,7 +76,7 @@ jobs:
   build-controller-images:
     needs: parse-build-settings
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
 
     strategy:
       fail-fast: false
@@ -84,8 +85,8 @@ jobs:
 
     permissions:
       contents: read # required for accessing the repo contents
-      id-token: write # required for requesting JWT and OIDC tokens
-      packages: write # required for pulling the cw actions images and writing cache images
+      id-token: write # required for buildkit OIDC tokens
+      packages: write # required for pushing images to GHCR
 
     steps:
       - name: Checkout code
@@ -98,9 +99,9 @@ jobs:
           dockerfile: ./images/Dockerfile
           image-name: controller
           image-tag-suffix: ${{ matrix.build-settings.os }}
+          version-tag: ${{ inputs.version-tag }}
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
-          cloudsmith-repo-name: ${{ inputs.target-repo-name }}
-          cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
+          registry-path: ${{ inputs.registry-path }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           buildx-args-common: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
@@ -141,7 +142,7 @@ jobs:
   build-slurmd-cw-images:
     needs: parse-build-settings
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
 
     strategy:
       fail-fast: false
@@ -150,8 +151,8 @@ jobs:
 
     permissions:
       contents: read # required for accessing the repo contents
-      id-token: write # required for requesting JWT and OIDC tokens
-      packages: write # required for pulling the cw actions images and writing cache images
+      id-token: write # required for buildkit OIDC tokens
+      packages: write # required for pushing images to GHCR
 
     steps:
       - name: Checkout code
@@ -164,9 +165,9 @@ jobs:
           dockerfile: ./images/Dockerfile
           image-name: slurmd-cw-${{ matrix.build-settings.cuda_name }}
           image-tag-suffix: ${{ matrix.build-settings.os }}
+          version-tag: ${{ inputs.version-tag }}
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
-          cloudsmith-repo-name: ${{ inputs.target-repo-name }}
-          cloudsmith-service: ${{ vars.CLOUDSMITH_SERVICE }}
+          registry-path: ${{ inputs.registry-path }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           buildx-args-common: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
@@ -210,7 +211,7 @@ jobs:
       - build-controller-images
       - build-slurmd-cw-images
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-cloudsmith-runner:v1.5.0
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
 
     outputs:
       built_images_json: ${{ steps.output-image-names.outputs.built_images_json }}
@@ -218,8 +219,6 @@ jobs:
 
     permissions:
       contents: read # required for accessing the repo contents
-      id-token: write # required for requesting JWT and OIDC tokens
-      packages: write # required for pulling the cw actions images and writing cache images
 
     steps:
       - name: Download controller based image names

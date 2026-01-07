@@ -17,6 +17,10 @@ inputs:
     description: "Suffix to append to the image tag."
     required: false
     default: ""
+  version-tag:
+    description: "Version tag to use (for releases). If not provided, uses commit SHA."
+    required: false
+    default: ""
   dockerfile:
     description: "Filepath resolving to the Dockerfile to use."
     required: true
@@ -29,14 +33,10 @@ inputs:
     description: "Extra arguments to pass to the `buildx build` command."
     required: false
     default: ""
-  cloudsmith-repo-name:
-    description: "The name of the Cloudsmith repository to use."
-    required: true
-    default: ""
-  cloudsmith-service:
-    description: "The name of the Cloudsmith service account to use."
-    required: true
-    default: ""
+  registry-path:
+    description: "Path within the registry (e.g. 'dev' for CI builds, empty for releases)."
+    required: false
+    default: "dev"
   github-token:
     description: "The GitHub token to use for authentication."
     required: true
@@ -60,7 +60,6 @@ runs:
       id: build-registry-auth
       uses: ./.github/actions/images/build-docker-config
       with:
-        cloudsmith-service: ${{ inputs.cloudsmith-service }}
         github-token: ${{ inputs.github-token }}
 
     - name: Determine image tag
@@ -68,13 +67,17 @@ runs:
       uses: ./.github/actions/images/determine-tag
       with:
         tag-suffix: ${{ inputs.image-tag-suffix }}
+        version-tag: ${{ inputs.version-tag }}
 
     - name: Assemble image name
       id: assemble-image-name
       shell: bash
       run: |
-        echo "image_name=${{ env.CI_REGISTRY }}/coreweave/${{ inputs.cloudsmith-repo-name }}/${{ inputs.image-name }}" >> $GITHUB_OUTPUT
-        echo "output_image_name=${{ env.OUTPUT_CI_REGISTRY }}/${{ inputs.image-name }}" >> $GITHUB_OUTPUT
+        if [ -n "${{ inputs.registry-path }}" ]; then
+          echo "image_name=${{ env.CI_REGISTRY }}/${{ inputs.registry-path }}/${{ inputs.image-name }}" >> $GITHUB_OUTPUT
+        else
+          echo "image_name=${{ env.CI_REGISTRY }}/${{ inputs.image-name }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Compute hash of image name
       id: compute-image-name-hash
@@ -89,9 +92,10 @@ runs:
         echo "::group::Build Image inputs"
           echo "context=${{ inputs.context }}"
           echo "dockerfile=${{ inputs.dockerfile }}"
-          echo "inputs.cloudsmith-repo-name=${{ inputs.cloudsmith-repo-name }}"
+          echo "registry-path=${{ inputs.registry-path }}"
           echo "image-name=${{ inputs.image-name }}"
           echo "image-tag-suffix=${{ inputs.image-tag-suffix }}"
+          echo "version-tag=${{ inputs.version-tag }}"
           echo "buildx-args=${{ inputs.buildx-args }}"
           echo "cache_image=${{ env.CI_CACHE_IMAGE }}"
         echo "::endgroup::"
@@ -126,4 +130,4 @@ runs:
     - name: Output image name
       id: output-image-name
       shell: bash
-      run: echo "::notice::${{ steps.assemble-image-name.outputs.output_image_name }}:${{ steps.determine-tag.outputs.tag }}"
+      run: echo "::notice::${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}"
