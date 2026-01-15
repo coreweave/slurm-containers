@@ -334,7 +334,8 @@ RUN apt-get -qq update && \
   numactl \
   patch \
   sudo \
-  wget && \
+  wget \
+  zsh && \
   apt-get -qq clean && \
   rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
