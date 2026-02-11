@@ -9,6 +9,8 @@ ARG PYXIS_VERSION=0.21.0
 ARG ENROOT_VERSION=4.0.1
 ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
 ARG KUBECTL_VERSION=1.34.1
+ARG MUNGE_VERSION=0.5.18
+# version 4 for Ubuntu 20.04
 # version 5 for Ubuntu 22.04
 ARG LIBJSON_VERSION=5
 # pmix2 for Ubuntu 22.04
@@ -68,7 +70,6 @@ RUN apt-get -qq update && \
   libldap2-dev \
   liblua5.3-dev \
   liblz4-dev \
-  libmunge-dev \
   libmysqlclient-dev \
   libnss-db \
   libnss-sss \
@@ -95,7 +96,6 @@ RUN apt-get -qq update && \
   lua-sec \
   lua5.3 \
   lua5.3-dev \
-  munge \
   net-tools \
   numactl \
   pip \
@@ -126,6 +126,21 @@ RUN make
 # Install libjwt
 RUN make install
 
+FROM builder as munge-builder
+ARG MUNGE_VERSION
+WORKDIR /build
+RUN curl --fail --show-error --silent --location \
+  --remote-name https://github.com/dun/munge/releases/download/munge-${MUNGE_VERSION}/munge-${MUNGE_VERSION}.tar.xz
+RUN tar xf munge-${MUNGE_VERSION}.tar.xz
+WORKDIR /build/munge-${MUNGE_VERSION}
+RUN ./configure \
+  --prefix=/ \
+  --sysconfdir=/etc \
+  --localstatedir=/var \
+  --runstatedir=/run
+RUN make
+RUN make install DESTDIR=/build/munge-${MUNGE_VERSION}/INSTALLDIR
+
 FROM builder AS slurm-builder
 # Slum version can be release version (ex. 22.05.7) or full git commit sha
 ARG SLURM_VERSION
@@ -138,6 +153,17 @@ ARG LIBJWT_VERSION
 COPY --from=libjwt-builder /build/libjwt-install/include/jwt.h /usr/local/include/jwt.h
 # Copying entire directory to preserve symlinks.
 COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
+
+# Install munge
+ARG MUNGE_VERSION
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/bin /usr/bin/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/etc /etc/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/include /usr/include/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/lib /usr/lib/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/run /var/run/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/sbin /usr/sbin/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/share /usr/local/share/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/var /var/
 
 # Apply any patches
 COPY patches/ patches/
@@ -288,7 +314,6 @@ RUN apt-get -qq update && \
   libmysqlclient-dev \
   libpmix-dev \
   libyaml-0-2 \
-  munge \
   environment-modules \
   # HDF5 runtime libraries
   libhdf5-103 \
@@ -340,6 +365,18 @@ RUN apt-get -qq update && \
 
 # Install libjwt
 COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
+
+# Install munge
+ARG MUNGE_VERSION
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/bin /usr/bin/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/etc /etc/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/include /usr/include/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/lib /usr/lib/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/run /var/run/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/sbin /usr/sbin/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/share /usr/local/share/
+COPY --from=munge-builder /build/munge-${MUNGE_VERSION}/INSTALLDIR/var /var/
+
 
 RUN arch=$(uname -m) && \
   ln -s /usr/lib/${arch}-linux-gnu/libnvidia-ml.so.1 /usr/lib/${arch}-linux-gnu/libnvidia-ml.so
@@ -424,7 +461,7 @@ RUN mkdir -p \
   /var/lib/munge \
   /var/log/munge \
   /run/munge && \
-  rm /etc/munge/munge.key
+  chmod 711 /var/lib/munge
 
 COPY ./bin /usr/share/sunk/bin
 
