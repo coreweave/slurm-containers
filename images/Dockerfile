@@ -502,6 +502,7 @@ RUN apt-get -qq update && \
   vim \
   wget \
   xz-utils \
+  libegl1 \
   # Explicitly uninstall systemd ( dependency of emacs )
   systemd- && \
   apt-get -qq clean && \
