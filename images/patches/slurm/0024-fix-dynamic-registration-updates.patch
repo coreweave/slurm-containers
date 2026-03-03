@@ -1,0 +1,162 @@
+# SPDX-FileCopyrightText: 2025 CoreWeave, Inc.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/slurmctld/node_mgr.c b/src/slurmctld/node_mgr.c
+index a074c71bc2..8361719fb7 100644
+--- a/src/slurmctld/node_mgr.c
++++ b/src/slurmctld/node_mgr.c
+@@ -4884,6 +4884,98 @@ fini:
+ 	return rc;
+ }
+
++/*
++ * Update an existing dynamic node's hardware config from re-registration.
++ * Splits the config record if it's shared with other nodes.
++ */
++static bool _update_dynamic_node_config(
++	node_record_t *node_ptr,
++	slurm_conf_node_t *conf_node,
++	slurm_node_registration_status_msg_t *reg_msg)
++{
++	config_record_t *config_ptr = node_ptr->config_ptr;
++	uint64_t new_real_memory;
++	uint16_t new_boards, new_cores, new_cpus, new_threads, new_tot_sockets;
++	uint32_t new_tmp_disk;
++
++	if (conf_node) {
++		new_real_memory = conf_node->real_memory;
++		new_boards = conf_node->boards;
++		new_cores = conf_node->cores;
++		new_cpus = conf_node->cpus;
++		new_threads = conf_node->threads;
++		new_tot_sockets = conf_node->tot_sockets;
++		new_tmp_disk = conf_node->tmp_disk;
++	} else {
++		new_real_memory = reg_msg->real_memory;
++		new_boards = reg_msg->boards;
++		new_cores = reg_msg->cores;
++		new_cpus = reg_msg->cpus;
++		new_threads = reg_msg->threads;
++		new_tot_sockets = reg_msg->sockets;
++		new_tmp_disk = reg_msg->tmp_disk;
++	}
++
++	if (config_ptr->real_memory == new_real_memory &&
++	    config_ptr->boards == new_boards &&
++	    config_ptr->cores == new_cores &&
++	    config_ptr->cpus == new_cpus &&
++	    config_ptr->threads == new_threads &&
++	    config_ptr->tot_sockets == new_tot_sockets &&
++	    config_ptr->tmp_disk == new_tmp_disk)
++		return false;
++
++	debug("Node %s dynamic config changed, updating (RealMemory: %"PRIu64"->%"PRIu64", CPUs: %u->%u)",
++	      reg_msg->node_name,
++	      config_ptr->real_memory, new_real_memory,
++	      config_ptr->cpus, new_cpus);
++
++	/*
++	 * Config record may be shared with other nodes after consolidation.
++	 * Split it so we only update this node's config.
++	 */
++	if ((bit_set_count(config_ptr->node_bitmap) > 1) &&
++	    bit_test(config_ptr->node_bitmap, node_ptr->index)) {
++		config_record_t *new_config_ptr = _dup_config(config_ptr);
++		bit_clear(config_ptr->node_bitmap, node_ptr->index);
++		xfree(config_ptr->nodes);
++		config_ptr->nodes =
++			bitmap2node_name(config_ptr->node_bitmap);
++		new_config_ptr->node_bitmap = bit_alloc(node_record_count);
++		bit_set(new_config_ptr->node_bitmap, node_ptr->index);
++		xfree(new_config_ptr->nodes);
++		new_config_ptr->nodes = xstrdup(node_ptr->name);
++		node_ptr->config_ptr = new_config_ptr;
++		config_ptr = new_config_ptr;
++	}
++
++	config_ptr->real_memory = new_real_memory;
++	config_ptr->boards = new_boards;
++	config_ptr->cores = new_cores;
++	config_ptr->cpus = new_cpus;
++	config_ptr->threads = new_threads;
++	config_ptr->tot_sockets = new_tot_sockets;
++	config_ptr->tmp_disk = new_tmp_disk;
++
++	node_ptr->real_memory = config_ptr->real_memory;
++	node_ptr->boards = config_ptr->boards;
++	node_ptr->cores = config_ptr->cores;
++	node_ptr->cpus = config_ptr->cpus;
++	node_ptr->threads = config_ptr->threads;
++	node_ptr->tot_sockets = config_ptr->tot_sockets;
++	node_ptr->tot_cores = config_ptr->tot_sockets * config_ptr->cores;
++	node_ptr->tmp_disk = config_ptr->tmp_disk;
++
++	if (node_ptr->tot_cores >= config_ptr->cpus)
++		node_ptr->tpc = 1;
++	else
++		node_ptr->tpc = config_ptr->threads;
++	node_ptr->cpus_efctv = node_ptr->cpus -
++		(node_ptr->core_spec_cnt * node_ptr->tpc);
++
++	return true;
++}
++
+ extern int create_dynamic_reg_node(slurm_msg_t *msg)
+ {
+ 	config_record_t *config_ptr;
+@@ -4917,7 +5009,19 @@ extern int create_dynamic_reg_node(slurm_msg_t *msg)
+ 			s_p_hashtbl_destroy(node_hashtbl);
+ 			return SLURM_ERROR;
+ 		}
++	}
+
++	/*
++	 * If the node already exists, update its config and skip creation.
++	 */
++	if ((node_ptr = find_node_record(reg_msg->node_name))) {
++		if (_update_dynamic_node_config(node_ptr, conf_node, reg_msg))
++			goto reconfigure;
++		s_p_hashtbl_destroy(node_hashtbl);
++		return SLURM_SUCCESS;
++	}
++
++	if (conf_node) {
+ 		config_ptr = config_record_from_conf_node(conf_node,
+ 							  slurmctld_tres_cnt);
+ 		if (conf_node->state)
+@@ -4973,8 +5077,6 @@ extern int create_dynamic_reg_node(slurm_msg_t *msg)
+ 		topology_g_add_rm_node(node_ptr);
+ 	}
+
+-	_queue_consolidate_config_list();
+-
+ 	/* Handle DOWN and DRAIN, otherwise make the node idle */
+ 	if ((state_val == NODE_STATE_DOWN) ||
+ 	    (state_val & NODE_STATE_DRAIN)) {
+@@ -4988,6 +5090,8 @@ extern int create_dynamic_reg_node(slurm_msg_t *msg)
+
+ 	node_ptr->node_state |= NODE_STATE_DYNAMIC_NORM;
+
++reconfigure:
++	_queue_consolidate_config_list();
+ 	set_cluster_tres(false);
+ 	_update_parts();
+ 	power_save_set_timeouts(NULL);
+diff --git a/src/slurmctld/proc_req.c b/src/slurmctld/proc_req.c
+index cbe9311be6..7ead9fe2de 100644
+--- a/src/slurmctld/proc_req.c
++++ b/src/slurmctld/proc_req.c
+@@ -2706,10 +2706,10 @@ static void _slurm_rpc_node_registration(slurm_msg_t *msg)
+
+ 					goto send_resp;
+ 				}
+-			} else if (find_node_record2(
+-					node_reg_stat_msg->node_name)) {
+-				already_registered = true;
+ 			} else {
++				if (find_node_record2(
++					    node_reg_stat_msg->node_name))
++					already_registered = true;
+ 				(void) create_dynamic_reg_node(msg);
+ 			}
+ 		}
