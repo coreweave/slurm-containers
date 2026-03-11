@@ -38,8 +38,21 @@ env:
   combined_image_names_artifact_file: built_image_names.json
 
   build-settings: |
+    - os: ubuntu24.04
+      controller_parent_image: ubuntu:noble-20260210.1
+      python_version: '3.12'
+      cuda:
+        - name: cu129
+          image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu24.04-nccl2.29.2-1-2276a5e
+        - name: cu130
+          image: ghcr.io/coreweave/nccl-tests:13.0.1-devel-ubuntu24.04-nccl2.29.2-1-2276a5e
+        - name: cu131
+          image: ghcr.io/coreweave/nccl-tests:13.1.0-devel-ubuntu24.04-nccl2.29.2-1-2276a5e
+      slurm_pmix_version: pmix2
+      libjson_version: 5
     - os: ubuntu22.04
       controller_parent_image: ubuntu:jammy-20240911.1
+      python_version: '3.10'
       cuda:
         - name: cu122
           image: ghcr.io/coreweave/nccl-tests:12.2.2-devel-ubuntu22.04-nccl2.27.5-1-d5a135d
@@ -51,6 +64,8 @@ env:
           image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e
         - name: cu130
           image: ghcr.io/coreweave/nccl-tests:13.0.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e
+        - name: cu131
+          image: ghcr.io/coreweave/nccl-tests:13.1.0-devel-ubuntu22.04-nccl2.29.2-1-2276a5e
       slurm_pmix_version: pmix2
       libjson_version: 5
 
@@ -67,8 +82,8 @@ jobs:
         shell: bash
         run: |
           _build_settings_json=$(echo "${{ env.build-settings }}" | yq -o=json eval . -)
-          _controller_matrix=$(echo "${_build_settings_json}" | jq -c '[.[] | {os, parent_image: .controller_parent_image, slurm_pmix_version, libjson_version}]')
-          _slurmd_cw_matrix=$(echo "${_build_settings_json}" | jq -c '[.[] as $r | $r.cuda[] | {os: $r.os, cuda_name: .name, parent_image: .image, slurm_pmix_version: $r.slurm_pmix_version, libjson_version: $r.libjson_version}]')
+          _controller_matrix=$(echo "${_build_settings_json}" | jq -c '[.[] | {os, parent_image: .controller_parent_image, python_version: (.python_version | tostring), slurm_pmix_version, libjson_version}]')
+          _slurmd_cw_matrix=$(echo "${_build_settings_json}" | jq -c '[.[] as $r | $r.cuda[] | {os: $r.os, cuda_name: .name, parent_image: .image, python_version: ($r.python_version | tostring), slurm_pmix_version: $r.slurm_pmix_version, libjson_version: $r.libjson_version}]')
 
           echo "controller_matrix=${_controller_matrix}" >> "$GITHUB_OUTPUT"
           echo "slurmd_cw_matrix=${_slurmd_cw_matrix}" >> "$GITHUB_OUTPUT"
@@ -107,6 +122,7 @@ jobs:
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
+            --build-arg=PYTHON_VERSION=${{ matrix.build-settings.python_version }}
             --sbom=true
       - name: Build image names artifact
         id: build-image-names-artifact
@@ -173,6 +189,7 @@ jobs:
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
             --build-arg=LIBJSON_VERSION=${{ matrix.build-settings.libjson_version }}
+            --build-arg=PYTHON_VERSION=${{ matrix.build-settings.python_version }}
             --sbom=true
       - name: Build image names artifact
         id: build-image-names-artifact
