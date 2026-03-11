@@ -223,7 +223,7 @@ RUN cd /build && \
   git clone https://github.com/coreweave/nsscache.git && \
   cd nsscache/ && \
   git checkout ${NSSCACHE_VERSION} && \
-  pip install --upgrade pip && \
+  find /usr/lib/python3* -name EXTERNALLY-MANAGED -delete && \
   pip install -r requirements.txt && \
   pip install .
 
@@ -241,9 +241,9 @@ COPY --from=libnvidia /etc/apt/sources.list.d/nvidia-container-toolkit.list /etc
 ARG MUNGE_USER=400
 ARG SLURM_USER=401
 
-RUN addgroup --gid $MUNGE_USER munge && \
+RUN groupadd --gid $MUNGE_USER munge && \
   useradd munge -u $MUNGE_USER -g $MUNGE_USER -s /usr/sbin/nologin && \
-  addgroup --gid $SLURM_USER slurm && \
+  groupadd --gid $SLURM_USER slurm && \
   useradd slurm -u $SLURM_USER -g $SLURM_USER -s /usr/sbin/nologin
 
 # Runtime deps
@@ -291,9 +291,9 @@ RUN apt-get -qq update && \
   munge \
   environment-modules \
   # HDF5 runtime libraries
-  libhdf5-103 \
+  libhdf5-103-1 \
   libhdf5-hl-100 \
-  libhdf5-cpp-103 \
+  libhdf5-cpp-103-1 \
   # Needed for init.sh script
   gettext-base \
   openssh-server \
@@ -489,7 +489,8 @@ RUN apt-get -qq update && \
   git \
   glances \
   less \
-  libgl1-mesa-glx \
+  libgl1 \
+  libglx-mesa0 \
   locales \
   lua-sec \
   lua5.3 \
