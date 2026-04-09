@@ -1,0 +1,78 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+#
+# Fix double-free crash in _send_reconfig_replies() during slurmctld
+# reconfiguration.
+#
+# Root cause: When REQUEST_RECONFIGURE is received over a persistent
+# connection (e.g. PERSIST_TYPE_NONE enabled by patch 0005),
+# _process_persist_conn() handles it with a stack-local slurm_msg_t.
+# reconfigure_slurm() stores a pointer to this stack variable in
+# reconfig_reqs. After _process_persist_conn() returns, the pointer
+# is dangling. When _send_reconfig_replies() later tries to use and
+# free the msg/conn, it accesses freed/corrupted memory causing a
+# double-free abort in glibc.
+#
+# The upstream xassert(!this_rpc->keep_msg) guard at proc_req.c:5944
+# is compiled out in release builds, allowing this unsafe path.
+#
+# Fixes:
+# 1. proc_req.c: Reject keep_msg RPCs on persistent connections at
+#    runtime (not just via xassert) to prevent use-after-free.
+# 2. rpc_queue.c: Respect keep_msg flag to prevent a latent bug where
+#    the queue worker would free msg/conn that keep_msg handlers have
+#    taken ownership of.
+#
+diff --git a/src/slurmctld/proc_req.c b/src/slurmctld/proc_req.c
+index 9e77e66521..57f0e644f1 100644
+--- a/src/slurmctld/proc_req.c
++++ b/src/slurmctld/proc_req.c
+@@ -5889,8 +5889,20 @@ static int _process_persist_conn(void *arg, persist_msg_t *persist_msg,
+ 		}
+ 	} else if ((this_rpc = find_rpc(persist_msg->msg_type))) {
+ 		xassert(!this_rpc->keep_msg);
+-		/* directly process the request */
+-		slurmctld_req(&msg, this_rpc);
++		if (this_rpc->keep_msg) {
++			/*
++			 * Cannot process keep_msg RPCs on persistent
++			 * connections because msg is stack-allocated and
++			 * the handler will store the pointer for later use,
++			 * causing use-after-free when this function returns.
++			 */
++			error("%s: rejecting keep_msg RPC %s on persistent connection",
++			      __func__, rpc_num2string(msg.msg_type));
++			slurm_send_rc_msg(&msg, ESLURM_NOT_SUPPORTED);
++		} else {
++			/* directly process the request */
++			slurmctld_req(&msg, this_rpc);
++		}
+ 	} else {
+ 		error("invalid RPC msg_type=%s",
+ 		      rpc_num2string(persist_msg->msg_type));
+diff --git a/src/slurmctld/rpc_queue.c b/src/slurmctld/rpc_queue.c
+index 1b5e9172fc..244ce0b51a 100644
+--- a/src/slurmctld/rpc_queue.c
++++ b/src/slurmctld/rpc_queue.c
+@@ -175,12 +175,17 @@ static void *_rpc_queue_worker(void *arg)
+ 			}
+ 			msg->flags |= CTLD_QUEUE_PROCESSING;
+ 			q->func(msg);
+-			conn_g_destroy(msg->tls_conn, true);
+-			msg->tls_conn = NULL;
++
++			if (!q->keep_msg) {
++				conn_g_destroy(msg->tls_conn, true);
++				msg->tls_conn = NULL;
++			}
+ 
+ 			END_TIMER;
+ 			record_rpc_stats(msg, DELTA_TIMER);
+-			slurm_free_msg(msg);
++			if (!q->keep_msg) {
++				slurm_free_msg(msg);
++			}
+ 			processed++;
+ 			processed_usec += DELTA_TIMER;
+ 		}
