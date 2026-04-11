@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/slurmctld/controller.c b/src/slurmctld/controller.c
+index 724784ba11..8a1603a19d 100644
+--- a/src/slurmctld/controller.c
++++ b/src/slurmctld/controller.c
+@@ -303,8 +303,10 @@ static void _send_reconfig_replies(void)
+
+ 	while ((msg = list_pop(reconfig_reqs))) {
+ 		/* Must avoid sending reply via msg->conmgr_fd */
+-		(void) slurm_send_rc_msg(msg, reconfig_rc);
+-		conn_g_destroy(msg->tls_conn, true);
++		if (msg->tls_conn) {
++			(void) slurm_send_rc_msg(msg, reconfig_rc);
++			conn_g_destroy(msg->tls_conn, true);
++		}
+ 		slurm_free_msg(msg);
+ 	}
+ }
+diff --git a/src/slurmctld/proc_req.c b/src/slurmctld/proc_req.c
+index cbe9311be6..54e6e6de81 100644
+--- a/src/slurmctld/proc_req.c
++++ b/src/slurmctld/proc_req.c
+@@ -3146,9 +3146,11 @@ static void _slurm_rpc_reconfigure_controller(slurm_msg_t *msg)
+ 	if (!validate_super_user(msg->auth_uid)) {
+ 		error("Security violation, RECONFIGURE RPC from uid=%u",
+ 		      msg->auth_uid);
+-		slurm_send_rc_msg(msg, ESLURM_USER_ID_MISSING);
+-		conn_g_destroy(msg->tls_conn, true);
+-		msg->tls_conn = NULL;
++		if (msg->tls_conn) {
++			slurm_send_rc_msg(msg, ESLURM_USER_ID_MISSING);
++			conn_g_destroy(msg->tls_conn, true);
++			msg->tls_conn = NULL;
++		}
+ 		slurm_free_msg(msg);
+ 		return;
+ 	} else
+@@ -5888,9 +5890,25 @@ static int _process_persist_conn(void *arg, persist_msg_t *persist_msg,
+ 			slurm_send_rc_msg(&msg, EINVAL);
+ 		}
+ 	} else if ((this_rpc = find_rpc(persist_msg->msg_type))) {
+-		xassert(!this_rpc->keep_msg);
+-		/* directly process the request */
+-		slurmctld_req(&msg, this_rpc);
++		if (this_rpc->keep_msg) {
++			/*
++			 * keep_msg RPCs take ownership of the message, which
++			 * is stack-allocated here. Heap-allocate a copy with
++			 * only scalar fields — shared pointers (tls_conn,
++			 * data, auth_cred) are owned by persist_conn and must
++			 * not be freed by the RPC handler.
++			 */
++			slurm_msg_t *heap_msg = xmalloc(sizeof(*heap_msg));
++			slurm_msg_t_init(heap_msg);
++			heap_msg->msg_type = msg.msg_type;
++			heap_msg->protocol_version = msg.protocol_version;
++			heap_msg->auth_uid = msg.auth_uid;
++			heap_msg->auth_gid = msg.auth_gid;
++			heap_msg->auth_ids_set = msg.auth_ids_set;
++			slurmctld_req(heap_msg, this_rpc);
++		} else {
++			slurmctld_req(&msg, this_rpc);
++		}
+ 	} else {
+ 		error("invalid RPC msg_type=%s",
+ 		      rpc_num2string(persist_msg->msg_type));
+--
+2.53.0
+

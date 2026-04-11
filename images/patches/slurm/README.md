@@ -26,6 +26,7 @@ licenses.
   - [0016-scontrol-dashboards](#0016-scontrol-dashboards)
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
   - [0020-empty-topology](#0020-empty-topology)
+  - [0024-fix-reconfig-crash-persist-conn](#0024-fix-reconfig-crash-persist-conn)
 
 ### 0001-max-server-threads
 
@@ -204,3 +205,18 @@ Notes from `pthead_detch` man
 In SLURM when a job fails due to not being able to meet the segment size requirements, the reason is `FAIL_BAD_CONSTRAINTS`. When a job is in this state, it is set to priority = 0, which is a held state. The scheduler will skip evaluating the job on future runs.
 
 This patch is to change it so that jobs that fail for unmet segment size requirements to not hold the job. So that if there are topology changes to the cluster, that can satisfy the job requirements, the job can still schedule. This will set the job reason to `Reason=Resources` instead of `Reason=BadConstraints`.
+
+### 0024-fix-reconfig-crash-persist-conn
+
+This fixes a double-free crash in `slurmctld` when `REQUEST_RECONFIGURE` is sent over a persistent
+connection. The persistent connection handler (`_process_persist_conn`) uses a stack-allocated
+`slurm_msg_t`, but `REQUEST_RECONFIGURE` has `keep_msg = true`, which causes the RPC handler to
+store a pointer to the message for later use. When the stack frame returns, `_send_reconfig_replies`
+reads from freed stack memory, causing a double-free in `conn_g_destroy`. Additionally, the
+`tls_conn` pointer is shared with the persistent connection, so destroying it would corrupt the
+persistent connection's transport state.
+
+The fix heap-allocates a minimal message copy (scalar fields only) when `keep_msg` is true in the
+persistent connection path, and guards the reply and transport cleanup in `_send_reconfig_replies`
+behind a `tls_conn` NULL check. Persistent connection callers will not receive a reconfigure reply,
+but the reconfigure itself still proceeds normally.
