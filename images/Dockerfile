@@ -43,6 +43,7 @@ RUN apt-get -qq update && \
   ca-certificates \
   curl \
   dialog \
+  dwarves \
   environment-modules \
   git \
   gettext-base \
@@ -160,6 +161,16 @@ RUN mkdir /build/slurm-$SLURM_VERSION/INSTALLDIR && \
   make -j $(nproc) contrib && \
   make install DESTDIR=/build/slurm-$SLURM_VERSION/INSTALLDIR && \
   make install-contrib DESTDIR=/build/slurm-$SLURM_VERSION/INSTALLDIR
+
+# Generate BTF from DWARF debug info for eBPF probe offset resolution
+RUN arch=$(uname -m) && \
+  mkdir -p /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm && \
+  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/slurmctld.btf \
+  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/sbin/slurmctld && \
+  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/libslurmfull.btf \
+  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/lib/${arch}-linux-gnu/slurm/libslurmfull.so && \
+  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/topology_block.btf \
+  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/lib/${arch}-linux-gnu/slurm/topology_block.so
 
 ## Install pyxis
 ## Requires enroot version 3.1.0
