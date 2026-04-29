@@ -40,7 +40,7 @@ index 42e20c2f8f..cf41d304ad 100644
 +	if (slurm_conf.sunk_node_dashboard_url && node_ptr->comment) {
 +		xstrcat(out, line_end);
 +		// SUNK slurm node comment always contains the node name
-+		xstrfmtcat(out, "SUNKNodeDashboardURL=%s&var-node=%s",
++		xstrfmtcat(out, "SUNKNodeDashboardURL=%s?var-node=%s",
 +			slurm_conf.sunk_node_dashboard_url,
 +			node_ptr->comment);
 +	}
@@ -100,7 +100,7 @@ index 2526f0627c..d7c5b231e6 100644
 +	/****** Line (optional) ******/
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name) {
 +		xstrcat(out, line_end);
-+		xstrfmtcat(out, "SUNKJobDashboardURL=%s&var-slurm_cluster=%s&var-job_id=%d",
++		xstrfmtcat(out, "SUNKJobDashboardURL=%s?var-slurm_cluster=%s&var-job_id=%d",
 +			slurm_conf.sunk_job_dashboard_url,
 +			slurm_conf.cluster_name,
 +			job_ptr->job_id);
@@ -118,7 +118,7 @@ index 67f4572c5b..497cfc407e 100644
  	info("Launching batch job %u for UID %u", req->job_id, batch_uid);
 
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name) {
-+		info("Job %d: SUNK job dashboard: %s&var-slurm_cluster=%s&var-job_id=%d",
++		info("Job %d: SUNK job dashboard: %s?var-slurm_cluster=%s&var-job_id=%d",
 +			req->job_id,
 +			slurm_conf.sunk_job_dashboard_url,
 +			slurm_conf.cluster_name,
@@ -133,7 +133,7 @@ index 67f4572c5b..497cfc407e 100644
  	int		delay;
 
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name && req->step_id.job_id) {
-+		info("Job %d: SUNK job dashboard: %s&var-slurm_cluster=%s&var-job_id=%d",
++		info("Job %d: SUNK job dashboard: %s?var-slurm_cluster=%s&var-job_id=%d",
 +			req->step_id.job_id,
 +			slurm_conf.sunk_job_dashboard_url,
 +			slurm_conf.cluster_name,
@@ -152,7 +152,7 @@ index 55e8a82c0f..e3b823e255 100644
  	}
 
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name && job->step_id.job_id) {
-+		printf("Job %d: SUNK job dashboard: %s&var-slurm_cluster=%s&var-job_id=%d\n",
++		printf("Job %d: SUNK job dashboard: %s?var-slurm_cluster=%s&var-job_id=%d\n",
 +			job->step_id.job_id,
 +			slurm_conf.sunk_job_dashboard_url,
 +			slurm_conf.cluster_name,
@@ -172,7 +172,7 @@ index 98d19a56c2..6b8a1628db 100644
  	mpir_cleanup();
 +
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name && job->step_id.job_id) {
-+		printf("Job %d: SUNK job dashboard: %s&var-slurm_cluster=%s&var-job_id=%d\n",
++		printf("Job %d: SUNK job dashboard: %s?var-slurm_cluster=%s&var-job_id=%d\n",
 +			job->step_id.job_id,
 +			slurm_conf.sunk_job_dashboard_url,
 +			slurm_conf.cluster_name,
