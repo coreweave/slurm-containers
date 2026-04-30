@@ -236,6 +236,7 @@ jobs:
 
     permissions:
       contents: read # required for accessing the repo contents
+      packages: read
 
     steps:
       - name: Download controller based image names
