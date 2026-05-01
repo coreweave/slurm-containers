@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 CoreWeave, Inc.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+
+name: Check nccl-tests Updates
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+  pull-requests: write
+
+jobs:
+  check-updates:
+    runs-on: cw
+    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python
+        uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        with:
+          python-version: '3.12'
+
+      - name: Check for nccl-tests updates
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .github/scripts/check_nccl_updates.py | tee /tmp/update-summary.txt
+
+      - name: Create or update PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet .github/workflows/build-images.yaml; then
+            echo "No changes detected"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="auto/nccl-tests-update"
+          git checkout -B "$BRANCH"
+          git add .github/workflows/build-images.yaml
+          git commit -m "fix: Update nccl-tests image references"
+          git push --force origin "$BRANCH"
+
+          SUMMARY=$(cat /tmp/update-summary.txt)
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number -q '.[].number')" ]; then
+            gh pr create \
+              --title "fix: Update nccl-tests image references" \
+              --body "Automated update of nccl-tests base images to latest available versions.
+
+          ${SUMMARY}" \
+              --base main
+          else
+            echo "Existing PR updated via force push"
+          fi
