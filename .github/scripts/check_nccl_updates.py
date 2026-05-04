@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Checks for nccl-tests image updates and modifies build-images.yaml."""
 
+import argparse
 import re
 import subprocess
 import sys
@@ -55,17 +56,24 @@ def parse_current_config(content: str) -> list[dict]:
 
 
 def find_updates(
-    current_entries: list[dict], available_tags: list[str]
+    current_entries: list[dict],
+    available_tags: list[str],
+    min_cuda: str | None = None,
 ) -> tuple[list[tuple[str, str]], dict[str, list[dict]]]:
     """Compare current config against available tags to find updates.
 
     Groups tags by (cuda_short_name, os) so that CUDA patch bumps
     (e.g. 12.9.1 -> 12.9.2) are treated as updates to existing entries.
 
+    Args:
+        min_cuda: Minimum CUDA major.minor version (e.g. "12.9") for new
+            additions. Does not affect updates to existing entries.
+
     Returns:
         updates: list of (old_tag, new_tag) replacements
         additions: dict of os_name -> list of entries for new CUDA versions
     """
+    min_cuda_tuple = tuple(int(p) for p in min_cuda.split(".")) if min_cuda else None
     available = [parse_tag(t) for t in available_tags]
     available = [a for a in available if a is not None]
 
@@ -108,6 +116,8 @@ def find_updates(
     for group, best in best_by_group.items():
         short_name, os_name = group
         if os_name in current_os_set and group not in current_groups:
+            if min_cuda_tuple and cuda_version_tuple(best["cuda"])[:2] < min_cuda_tuple:
+                continue
             additions.setdefault(os_name, []).append(best)
 
     for os_name in additions:
@@ -169,6 +179,15 @@ def fetch_available_tags() -> list[str]:
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--min-cuda",
+        metavar="MAJOR.MINOR",
+        help="Minimum CUDA version (e.g. 12.9) for new additions. "
+        "Does not affect updates to existing entries.",
+    )
+    args = parser.parse_args()
+
     content = WORKFLOW_FILE.read_text()
     current_entries = parse_current_config(content)
     print(f"Found {len(current_entries)} current nccl-tests entries")
@@ -176,7 +195,7 @@ def main():
     available_tags = fetch_available_tags()
     print(f"Found {len(available_tags)} available tags in registry")
 
-    updates, additions = find_updates(current_entries, available_tags)
+    updates, additions = find_updates(current_entries, available_tags, min_cuda=args.min_cuda)
 
     if not updates and not additions:
         print("No updates found.")

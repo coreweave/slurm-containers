@@ -31,7 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python .github/scripts/check_nccl_updates.py | tee /tmp/update-summary.txt
+          python .github/scripts/check_nccl_updates.py --min-cuda 12.9 | tee /tmp/update-summary.txt
 
       - name: Create or update PR
         env:

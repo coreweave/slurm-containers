@@ -236,6 +236,47 @@ class TestFindUpdates(unittest.TestCase):
         updates, additions = find_updates(current, available)
         self.assertEqual(len(updates), 1)
 
+    def test_min_cuda_filters_old_additions(self):
+        current = [
+            parse_tag("12.9.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e"),
+        ]
+        available = [
+            "12.9.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e",
+            "11.7.1-devel-ubuntu22.04-nccl2.14.3-1-e73246a",
+            "12.0.1-devel-ubuntu22.04-nccl2.23.4-1-c58f522",
+            "13.2.0-devel-ubuntu22.04-nccl2.29.2-1-2276a5e",
+        ]
+        updates, additions = find_updates(current, available, min_cuda="12.9")
+        self.assertEqual(len(updates), 0)
+        self.assertEqual(len(additions["ubuntu22.04"]), 1)
+        self.assertEqual(additions["ubuntu22.04"][0]["cuda"], "13.2.0")
+
+    def test_min_cuda_does_not_affect_existing_updates(self):
+        """NCCL bumps for existing entries below the floor still apply."""
+        current = [
+            parse_tag("12.2.2-devel-ubuntu22.04-nccl2.27.5-1-d5a135d"),
+            parse_tag("12.9.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e"),
+        ]
+        available = [
+            "12.2.2-devel-ubuntu22.04-nccl2.27.7-1-a33e52a",
+            "12.9.1-devel-ubuntu22.04-nccl2.30.0-1-abc1234",
+        ]
+        updates, additions = find_updates(current, available, min_cuda="12.9")
+        self.assertEqual(len(updates), 2)
+
+    def test_min_cuda_boundary_is_inclusive(self):
+        current = [
+            parse_tag("13.0.1-devel-ubuntu24.04-nccl2.29.2-1-2276a5e"),
+        ]
+        available = [
+            "13.0.1-devel-ubuntu24.04-nccl2.29.2-1-2276a5e",
+            "12.9.0-devel-ubuntu24.04-nccl2.29.2-1-2276a5e",
+            "12.8.1-devel-ubuntu24.04-nccl2.29.2-1-2276a5e",
+        ]
+        updates, additions = find_updates(current, available, min_cuda="12.9")
+        self.assertEqual(len(additions["ubuntu24.04"]), 1)
+        self.assertEqual(additions["ubuntu24.04"][0]["cuda"], "12.9.0")
+
 
 class TestApplyUpdates(unittest.TestCase):
     def test_replace_tag(self):
