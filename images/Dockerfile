@@ -8,6 +8,7 @@ ARG S6_OVERLAY_VERSION=3.2.2.0
 ARG PYXIS_VERSION=0.23.0
 ARG ENROOT_VERSION=4.1.2
 ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
+ARG S2N_VERSION=1.7.2
 ARG KUBECTL_VERSION=1.36.0
 # version 5 for Ubuntu 22.04
 ARG LIBJSON_VERSION=5
@@ -41,6 +42,7 @@ RUN apt-get -qq update && \
   build-essential \
   bzip2 \
   ca-certificates \
+  cmake \
   curl \
   dialog \
   environment-modules \
@@ -126,6 +128,16 @@ RUN make
 # Install libjwt
 RUN make install
 
+# Build s2n-tls for Slurm's tls/s2n plugin
+FROM builder AS s2n-builder
+ARG S2N_VERSION
+WORKDIR /build
+RUN git clone --depth 1 --branch v${S2N_VERSION} https://github.com/aws/s2n-tls.git
+WORKDIR /build/s2n-tls
+RUN cmake . -B build/ -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/build/s2n-install
+RUN cmake --build build/ -j $(nproc)
+RUN cmake --install build/
+
 FROM builder AS slurm-builder
 # Slum version can be release version (ex. 22.05.7) or full git commit sha
 ARG SLURM_VERSION
@@ -138,6 +150,10 @@ ARG LIBJWT_VERSION
 COPY --from=libjwt-builder /build/libjwt-install/include/jwt.h /usr/local/include/jwt.h
 # Copying entire directory to preserve symlinks.
 COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
+
+# Install s2n-tls
+COPY --from=s2n-builder /build/s2n-install/include/ /usr/local/include/
+COPY --from=s2n-builder /build/s2n-install/lib/ /usr/local/lib/
 
 # Apply any patches
 COPY patches/ patches/
@@ -152,7 +168,7 @@ RUN arch=$(uname -m) && \
   --enable-pam --with-pam_dir=/usr/lib/${arch}-linux-gnu/security \
   --with-hdf5 --disable-glibtest --disable-gtktest \
   --with-pmix=/usr/lib/${arch}-linux-gnu/$SLURM_PMIX_VERSION \
-  --with-json=yes --with-yaml=yes --with-http-parser=yes --with-jwt=/usr/local/ --with-bpf=yes
+  --with-json=yes --with-yaml=yes --with-http-parser=yes --with-jwt=/usr/local/ --with-s2n=/usr/local/ --with-bpf=yes
 COPY build/Makefile.docs doc/Makefile
 
 RUN mkdir /build/slurm-$SLURM_VERSION/INSTALLDIR && \
@@ -340,6 +356,9 @@ RUN apt-get -qq update && \
 
 # Install libjwt
 COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
+
+# Install s2n-tls runtime libraries (required for tls/s2n plugin)
+COPY --from=s2n-builder /build/s2n-install/lib/ /usr/local/lib/
 
 RUN arch=$(uname -m) && \
   ln -s /usr/lib/${arch}-linux-gnu/libnvidia-ml.so.1 /usr/lib/${arch}-linux-gnu/libnvidia-ml.so
