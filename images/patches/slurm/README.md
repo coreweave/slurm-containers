@@ -21,7 +21,6 @@ licenses.
   - [0006-allow-all-topology](#0006-allow-all-topology)
   - [0007-cgroup-v2](#0007-cgroup-v2)
   - [0008-job-skip-ids](#0008-job-skip-ids)
-  - [0014-25.05-fix-xcpuinfo-core-count.patch](#0014-2505-fix-xcpuinfo-core-countpatch)
   - [0015-remove-gres-core-range-matches-sock.patch](#0015-remove-gres-core-range-matches-sockpatch)
   - [0016-scontrol-dashboards](#0016-scontrol-dashboards)
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
@@ -131,12 +130,6 @@ and allows Slurm to continue to process jobs.
 
 If upstream was to correct the root cause of why job ids become corrupted or handle corrupted job
 ids gracefully then this patch would no longer be required.
-
-### 0014-25.05-fix-xcpuinfo-core-count.patch
-
-This patch fixes a bug in the `xcpuinfo.xcpuinfo_get_cpuspec` function that incorrectly calculates the
-number of cores on the machine - it misses the inclusion of sockets.
-ref: [SchedMD 22797](https://support.schedmd.com/show_bug.cgi?id=22797)
 
 ### 0015-remove-gres-core-range-matches-sock.patch
 
