@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # SPDX-PackageName: slurm-containers
 diff --git a/slurm/slurm.h b/slurm/slurm.h
-index 655ff9f510..0c6cd24e2a 100644
+index 06f4cabc75..588aad4133 100644
 --- a/slurm/slurm.h
 +++ b/slurm/slurm.h
-@@ -2930,6 +2930,8 @@ typedef struct reservation_name_msg {
+@@ -2968,6 +2968,8 @@ typedef struct reservation_name_msg {
   */
  typedef struct {
  	time_t last_update;	/* last update time of the build parameters */
@@ -15,10 +15,10 @@ index 655ff9f510..0c6cd24e2a 100644
  	uint16_t accounting_storage_enforce; /* job requires valid association:
  					      * user/account/partition/cluster */
 diff --git a/src/api/config_info.c b/src/api/config_info.c
-index 206c015d6b..7456cd2cd8 100644
+index ba47e590b5..23c88fbb89 100644
 --- a/src/api/config_info.c
 +++ b/src/api/config_info.c
-@@ -741,6 +741,9 @@ extern void *slurm_ctl_conf_2_key_pairs(slurm_conf_t *conf)
+@@ -739,6 +739,9 @@ extern void *slurm_ctl_conf_2_key_pairs(slurm_conf_t *conf)
  		xfree(key);
  	}
 
@@ -29,10 +29,10 @@ index 206c015d6b..7456cd2cd8 100644
  		add_key_pair(ret_list, "FairShareDampeningFactor", "%u",
  			     conf->fs_dampening_factor);
 diff --git a/src/api/node_info.c b/src/api/node_info.c
-index 42e20c2f8f..cf41d304ad 100644
+index d29a175c71..8322c0178d 100644
 --- a/src/api/node_info.c
 +++ b/src/api/node_info.c
-@@ -461,6 +461,15 @@ char *slurm_sprint_node_table(node_info_t *node_ptr, int one_liner)
+@@ -475,6 +475,15 @@ char *slurm_sprint_node_table(node_info_t *node_ptr, int one_liner)
  		xstrfmtcat(out, "ReservationName=%s", node_ptr->resv_name);
  	}
 
@@ -45,14 +45,14 @@ index 42e20c2f8f..cf41d304ad 100644
 +			node_ptr->comment);
 +	}
 +
- 	if (one_liner)
- 		xstrcat(out, "\n");
- 	else
+ 	/****** TLS certificate info ******/
+ 	if (node_ptr->cert_flags || node_ptr->cert_last_renewal) {
+ 		bool token_set = node_ptr->cert_flags & NODE_CERT_TOKEN_SET;
 diff --git a/src/common/read_config.c b/src/common/read_config.c
-index 5c58f65a56..a3445d81a9 100644
+index 7825e08ff4..73badecabb 100644
 --- a/src/common/read_config.c
 +++ b/src/common/read_config.c
-@@ -316,6 +316,8 @@ s_p_options_t slurm_conf_options[] = {
+@@ -308,6 +308,8 @@ s_p_options_t slurm_conf_options[] = {
  	{"LaunchType", S_P_STRING},
  	{"Licenses", S_P_STRING},
  	{"LogTimeFormat", S_P_STRING},
@@ -61,25 +61,25 @@ index 5c58f65a56..a3445d81a9 100644
  	{"MailDomain", S_P_STRING},
  	{"MailProg", S_P_STRING},
  	{"MaxArraySize", S_P_UINT32},
-@@ -3013,6 +3015,8 @@ extern void free_slurm_conf(slurm_conf_t *ctl_conf_ptr, bool purge_node_hash)
- 	xfree (ctl_conf_ptr->slurmd_spooldir);
- 	xfree (ctl_conf_ptr->slurmd_user_name);
- 	xfree (ctl_conf_ptr->srun_epilog);
-+	xfree (ctl_conf_ptr->sunk_node_dashboard_url);
-+	xfree (ctl_conf_ptr->sunk_job_dashboard_url);
- 	xfree (ctl_conf_ptr->srun_port_range);
- 	xfree (ctl_conf_ptr->srun_prolog);
- 	xfree (ctl_conf_ptr->state_save_location);
-@@ -3206,6 +3210,8 @@ void init_slurm_conf(slurm_conf_t *ctl_conf_ptr)
- 	xfree (ctl_conf_ptr->state_save_location);
- 	xfree (ctl_conf_ptr->suspend_exc_nodes);
- 	xfree (ctl_conf_ptr->suspend_exc_parts);
-+	xfree (ctl_conf_ptr->sunk_node_dashboard_url);
-+	xfree (ctl_conf_ptr->sunk_job_dashboard_url);
- 	xfree (ctl_conf_ptr->suspend_exc_states);
- 	xfree (ctl_conf_ptr->suspend_program);
- 	ctl_conf_ptr->suspend_rate		= NO_VAL16;
-@@ -5501,6 +5507,9 @@ static int _validate_and_set_defaults(slurm_conf_t *conf,
+@@ -2707,6 +2709,8 @@ extern void free_slurm_conf(slurm_conf_t *ctl_conf_ptr, bool purge_node_hash)
+ 	xfree(ctl_conf_ptr->slurmd_spooldir);
+ 	xfree(ctl_conf_ptr->slurmd_user_name);
+ 	xfree(ctl_conf_ptr->srun_epilog);
++	xfree(ctl_conf_ptr->sunk_node_dashboard_url);
++	xfree(ctl_conf_ptr->sunk_job_dashboard_url);
+ 	xfree(ctl_conf_ptr->srun_port_range);
+ 	xfree(ctl_conf_ptr->srun_prolog);
+ 	xfree(ctl_conf_ptr->state_save_location);
+@@ -2903,6 +2907,8 @@ void init_slurm_conf(slurm_conf_t *ctl_conf_ptr)
+ 	xfree(ctl_conf_ptr->state_save_location);
+ 	xfree(ctl_conf_ptr->suspend_exc_nodes);
+ 	xfree(ctl_conf_ptr->suspend_exc_parts);
++	xfree(ctl_conf_ptr->sunk_node_dashboard_url);
++	xfree(ctl_conf_ptr->sunk_job_dashboard_url);
+ 	xfree(ctl_conf_ptr->suspend_exc_states);
+ 	xfree(ctl_conf_ptr->suspend_program);
+ 	ctl_conf_ptr->suspend_rate = NO_VAL16;
+@@ -5179,6 +5185,9 @@ static int _validate_and_set_defaults(slurm_conf_t *conf,
  	(void) s_p_get_string(&conf->task_epilog, "TaskEpilog", hashtbl);
  	(void) s_p_get_string(&conf->task_prolog, "TaskProlog", hashtbl);
 
@@ -90,47 +90,47 @@ index 5c58f65a56..a3445d81a9 100644
  		conf->tcp_timeout = DEFAULT_TCP_TIMEOUT;
 
 diff --git a/src/scontrol/info_job.c b/src/scontrol/info_job.c
-index 2526f0627c..d7c5b231e6 100644
+index 8685b3073d..f9ca546140 100644
 --- a/src/scontrol/info_job.c
 +++ b/src/scontrol/info_job.c
-@@ -909,6 +909,15 @@ static char *_sprint_job_info(job_info_t *job_ptr)
- 		xstrfmtcat(out, "ResvPorts=%s", job_ptr->resv_ports);
+@@ -948,6 +948,15 @@ static char *_sprint_job_info(job_info_t *job_ptr)
+ 		xstrcat(out, line_end);
  	}
 
 +	/****** Line (optional) ******/
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name) {
-+		xstrcat(out, line_end);
 +		xstrfmtcat(out, "SUNKJobDashboardURL=%s?var-slurm_cluster=%s&var-job_id=%d",
 +			slurm_conf.sunk_job_dashboard_url,
 +			slurm_conf.cluster_name,
 +			job_ptr->job_id);
++		xstrcat(out, line_end);
 +	}
 +
- 	xstrcat(out, line_end);
+ 	xstrtrim(out);
 
  	/****** END OF JOB RECORD ******/
 diff --git a/src/slurmd/slurmd/req.c b/src/slurmd/slurmd/req.c
-index 67f4572c5b..497cfc407e 100644
+index c18c11c168..e08b084c1c 100644
 --- a/src/slurmd/slurmd/req.c
 +++ b/src/slurmd/slurmd/req.c
-@@ -2738,6 +2738,14 @@ static void _rpc_batch_job(slurm_msg_t *msg)
+@@ -2242,6 +2242,14 @@ static void _rpc_batch_job(slurm_msg_t *msg)
 
- 	info("Launching batch job %u for UID %u", req->job_id, batch_uid);
+ 	info("Launching batch %pI for UID %u", &req->step_id, batch_uid);
 
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name) {
 +		info("Job %d: SUNK job dashboard: %s?var-slurm_cluster=%s&var-job_id=%d",
-+			req->job_id,
++			req->step_id.job_id,
 +			slurm_conf.sunk_job_dashboard_url,
 +			slurm_conf.cluster_name,
-+			req->job_id);
++			req->step_id.job_id);
 +	}
 +
- 	debug3("_rpc_batch_job: call to _forkexec_slurmstepd");
+ 	debug3("%s: call to _forkexec_slurmstepd", __func__);
  	rc = _forkexec_slurmstepd(LAUNCH_BATCH_JOB, (void *)req, cli, batch_uid,
- 				  req->job_id, SLURM_BATCH_SCRIPT,
-@@ -5336,6 +5344,14 @@ _rpc_terminate_job(slurm_msg_t *msg)
- 	int             nsteps = 0;
+ 				  req->step_id.job_id, SLURM_BATCH_SCRIPT,
+@@ -4421,6 +4429,14 @@ static void _rpc_terminate_job(slurm_msg_t *msg)
  	int		delay;
+ 	bool send_response = true;
 
 +	if (slurm_conf.sunk_job_dashboard_url && slurm_conf.cluster_name && req->step_id.job_id) {
 +		info("Job %d: SUNK job dashboard: %s?var-slurm_cluster=%s&var-job_id=%d",
@@ -140,14 +140,14 @@ index 67f4572c5b..497cfc407e 100644
 +			req->step_id.job_id);
 +	}
 +
- 	debug("%s: uid = %u %ps", __func__, msg->auth_uid, &req->step_id);
- 	/*
- 	 * check that requesting user ID is the Slurm UID
+ 	debug("%s: starting for %pI %ps",
+ 	      __func__, &req->step_id, &req->step_id);
+
 diff --git a/src/srun/launch.c b/src/srun/launch.c
-index 55e8a82c0f..e3b823e255 100644
+index 42714f3be3..bdc47b6ab9 100644
 --- a/src/srun/launch.c
 +++ b/src/srun/launch.c
-@@ -1520,6 +1520,14 @@ extern int launch_g_step_launch(srun_job_t *job, slurm_step_io_fds_t *cio_fds,
+@@ -1525,6 +1525,14 @@ extern int launch_g_step_launch(srun_job_t *job, slurm_step_io_fds_t *cio_fds,
  		}
  	}
 
@@ -163,10 +163,10 @@ index 55e8a82c0f..e3b823e255 100644
  	if (slurm_step_launch_wait_start(job->step_ctx) == SLURM_SUCCESS) {
  		update_job_state(job, SRUN_JOB_RUNNING);
 diff --git a/src/srun/srun_job.c b/src/srun/srun_job.c
-index 98d19a56c2..6b8a1628db 100644
+index 4c0f6c52b0..0884941f4b 100644
 --- a/src/srun/srun_job.c
 +++ b/src/srun/srun_job.c
-@@ -1596,6 +1596,14 @@ extern void fini_srun(srun_job_t *job, bool got_alloc, uint32_t *global_rc)
+@@ -1592,6 +1592,14 @@ extern void fini_srun(srun_job_t *job, bool got_alloc, uint32_t *global_rc)
  		*global_rc = 128 + WTERMSIG(*global_rc);
 
  	mpir_cleanup();
