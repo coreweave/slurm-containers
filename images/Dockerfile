@@ -9,6 +9,7 @@ ARG PYXIS_VERSION=0.21.0
 ARG ENROOT_VERSION=4.0.1
 ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
 ARG KUBECTL_VERSION=1.34.1
+ARG S5CMD_VERSION=2.3.0-acb67716
 # version 5 for Ubuntu 22.04
 ARG LIBJSON_VERSION=5
 # pmix2 for Ubuntu 22.04
@@ -226,6 +227,14 @@ RUN cd /build && \
   find /usr/lib/python3* -name EXTERNALLY-MANAGED -delete && \
   pip install -r requirements.txt && \
   pip install .
+
+# Stage s5cmd
+FROM builder AS s5cmd
+ARG S5CMD_VERSION
+WORKDIR /build
+RUN arch=$(dpkg --print-architecture) && \
+  curl --fail --show-error --silent --location \
+  --remote-name https://github.com/coreweave/s5cmd/releases/download/v${S5CMD_VERSION}/s5cmd_${S5CMD_VERSION}_linux_${arch}.deb
 
 # Actual container artifact
 FROM $PARENT_IMAGE AS controller
@@ -516,6 +525,14 @@ RUN apt-get -qq update && \
 
 RUN locale-gen en_US.UTF-8
 COPY --from=nhc-builder /build/nhc/INSTALLDIR/ /
+
+# Install s5cmd
+ARG S5CMD_VERSION
+COPY --from=s5cmd /build/ /tmp/s5cmd/
+RUN arch=$(dpkg --print-architecture) && \
+  apt-get install -y \
+  /tmp/s5cmd/s5cmd_${S5CMD_VERSION}_linux_${arch}.deb && \
+  rm -rf /tmp/s5cmd
 
 # Global environments that are useful everywhere in the cluster
 RUN echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk" >> /etc/environment && \
