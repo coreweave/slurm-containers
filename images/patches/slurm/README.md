@@ -26,6 +26,10 @@ licenses.
   - [0016-scontrol-dashboards](#0016-scontrol-dashboards)
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
   - [0020-empty-topology](#0020-empty-topology)
+  - [0021-revert-remove-cg-limits.patch](#0021-revert-remove-cg-limitspatch)
+  - [0022-move-persist-conn-shutdown.patch](#0022-move-persist-conn-shutdownpatch)
+  - [0023-fail-bad-constraints.patch](#0023-fail-bad-constraintspatch)
+  - [0024-fix-mem-spec-limit.patch](#0024-fix-mem-spec-limitpatch)
 
 ### 0001-max-server-threads
 
@@ -204,3 +208,18 @@ Notes from `pthead_detch` man
 In SLURM when a job fails due to not being able to meet the segment size requirements, the reason is `FAIL_BAD_CONSTRAINTS`. When a job is in this state, it is set to priority = 0, which is a held state. The scheduler will skip evaluating the job on future runs.
 
 This patch is to change it so that jobs that fail for unmet segment size requirements to not hold the job. So that if there are topology changes to the cluster, that can satisfy the job requirements, the job can still schedule. This will set the job reason to `Reason=Resources` instead of `Reason=BadConstraints`.
+
+### 0024-fix-mem-spec-limit.patch
+
+Root cause: _spec_override() computes MemSpecLimit as physical memory
+minus the memory limit detected from the slurmd cgroup. If the detected
+cgroup limit is equal to or greater than physical memory, that unsigned
+subtraction underflows and produces a huge MemSpecLimit value instead of
+representing "no reserved system memory".
+
+This could happen when slurmd runs inside a container with privileged=true.
+Slurmd will read the entire host memory as the memory constraint, which is typically
+greater than the RealMemory value, which is the Pod memory request/limit.
+
+Fix: Preserve the existing calculation when physical memory is greater
+than the detected limit, and otherwise clamp MemSpecLimit to 0.
