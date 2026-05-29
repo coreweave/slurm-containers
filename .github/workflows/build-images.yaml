@@ -43,11 +43,13 @@ env:
       python_version: '3.12'
       cuda:
         - name: cu129
-          image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu24.04-nccl2.29.2-1-2276a5e
+          image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
         - name: cu130
-          image: ghcr.io/coreweave/nccl-tests:13.0.1-devel-ubuntu24.04-nccl2.29.2-1-2276a5e
+          image: ghcr.io/coreweave/nccl-tests:13.0.2-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
         - name: cu131
-          image: ghcr.io/coreweave/nccl-tests:13.1.0-devel-ubuntu24.04-nccl2.29.2-1-2276a5e
+          image: ghcr.io/coreweave/nccl-tests:13.1.1-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
+        - name: cu132
+          image: ghcr.io/coreweave/nccl-tests:13.2.1-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
       slurm_pmix_version: pmix2
       libjson_version: 5
     - os: ubuntu22.04
@@ -59,13 +61,15 @@ env:
         - name: cu124
           image: ghcr.io/coreweave/nccl-tests:12.4.1-devel-ubuntu22.04-nccl2.27.5-1-d5a135d
         - name: cu128
-          image: ghcr.io/coreweave/nccl-tests:12.8.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e
+          image: ghcr.io/coreweave/nccl-tests:12.8.1-devel-ubuntu22.04-nccl2.30.4-1-2eedd7c
         - name: cu129
-          image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e
+          image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu22.04-nccl2.30.4-1-2eedd7c
         - name: cu130
-          image: ghcr.io/coreweave/nccl-tests:13.0.1-devel-ubuntu22.04-nccl2.29.2-1-2276a5e
+          image: ghcr.io/coreweave/nccl-tests:13.0.2-devel-ubuntu22.04-nccl2.30.4-1-2eedd7c
         - name: cu131
-          image: ghcr.io/coreweave/nccl-tests:13.1.0-devel-ubuntu22.04-nccl2.29.2-1-2276a5e
+          image: ghcr.io/coreweave/nccl-tests:13.1.1-devel-ubuntu22.04-nccl2.30.4-1-2eedd7c
+        - name: cu132
+          image: ghcr.io/coreweave/nccl-tests:13.2.1-devel-ubuntu22.04-nccl2.30.4-1-2eedd7c
       slurm_pmix_version: pmix2
       libjson_version: 5
 
