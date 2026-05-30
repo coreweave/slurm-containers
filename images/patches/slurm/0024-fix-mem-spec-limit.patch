@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 CoreWeave, Inc.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+# Fix MemSpecLimit integer underflow in slurmd's cgroup memory override.
+#
+# Root cause: _spec_override() computes MemSpecLimit as physical memory
+# minus the memory limit detected from the slurmd cgroup. If the detected
+# cgroup limit is equal to or greater than physical memory, that unsigned
+# subtraction underflows and produces a huge MemSpecLimit value instead of
+# representing "no reserved system memory".
+#
+# Fix: Preserve the existing calculation when physical memory is greater
+# than the detected limit, and otherwise clamp MemSpecLimit to 0.
+diff --git a/src/slurmd/slurmd/slurmd.c b/src/slurmd/slurmd/slurmd.c
+index 6f2a92611b..b89fe301d4 100644
+--- a/src/slurmd/slurmd/slurmd.c
++++ b/src/slurmd/slurmd/slurmd.c
+@@ -1059,7 +1059,11 @@ static void _spec_override(uint64_t phys_mem)
+ 		info("No memory limits detected for this system, assuming the available memory equals the physical memory");
+ 	} else {
+ 		slurmd_limits->limit_in_bytes /= 1024 * 1024;
+-		conf->mem_spec_limit = phys_mem - slurmd_limits->limit_in_bytes;
++		if (phys_mem > slurmd_limits->limit_in_bytes) {
++			conf->mem_spec_limit = phys_mem - slurmd_limits->limit_in_bytes;
++		} else {
++			conf->mem_spec_limit = 0;
++		}
+ 		info("Detected real memory of %luM but constrained to %luM, setting MemSpecLimit=%luM",
+ 		     phys_mem, slurmd_limits->limit_in_bytes,
+ 		     conf->mem_spec_limit);
