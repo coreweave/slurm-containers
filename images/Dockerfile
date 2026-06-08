@@ -464,8 +464,9 @@ RUN /usr/share/sunk/bin/env-to-modulefile.sh
 RUN sed -i -e 's/%admin ALL=(ALL) ALL/%admin ALL=NOPASSWD:ALL/g' /etc/sudoers && \
   sed -i -e 's/%sudo ALL=(ALL:ALL) ALL/%sudo ALL=NOPASSWD:ALL/g' /etc/sudoers
 
-# Set umask to read/write for user and group but noone else
-RUN echo "umask u=rwx,g=rwx,o=" > /etc/profile.d/set-umask-for-all-users.sh
+# Default umask honors SUNK_UMASK env variable when set,
+# falling back to the Linux-conventional 0022.
+RUN echo 'umask "${SUNK_UMASK:-0022}"' > /etc/profile.d/set-umask-for-all-users.sh
 
 ADD bashrc /tmp/bashrc
 RUN cat /tmp/bashrc >> /etc/bash.bashrc && rm /tmp/bashrc
