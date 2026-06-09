@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2025 CoreWeave, Inc.
 # SPDX-License-Identifier: GPL-2.0-or-later
 # SPDX-PackageName: slurm-containers
-umask u=rwx,g=rwx,o=
+umask "${SUNK_UMASK:-0022}"
 
 # Set soft limit for open file descriptors
 ulimit -Sn 16384
