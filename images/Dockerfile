@@ -23,6 +23,7 @@ ARG NSSCACHE_VERSION=v0.7.0
 ARG PYTHON_VERSION=3.10
 # This needs to match the `nsscache.nsscacheConfig.default.files_dir` setting in the values
 ARG NSSCACHE_FILES_DIR="/etc/nsscache"
+ARG CONTAINER_TOOLKIT_VERSION=1.19.1-1
 
 ## Controller Extras args
 ARG CONDA_VERSION=py313_25.7.0-2
@@ -289,6 +290,7 @@ RUN groupadd --gid $MUNGE_USER munge && \
 
 # Install runtime dependencies and libnvidia-container for enroot dependencies (e.g. nvidia-container-cli)
 ARG LIBJSON_VERSION
+ARG CONTAINER_TOOLKIT_VERSION
 RUN apt-get -qq update && \
   apt-get -qq install -y --no-install-recommends \
   libaudit1 \
@@ -322,10 +324,10 @@ RUN apt-get -qq update && \
   gettext-base \
   openssh-server \
   # libnvidia-container
-  nvidia-container-toolkit \
-  nvidia-container-toolkit-base \
-  libnvidia-container-tools \
-  libnvidia-container1 \
+  nvidia-container-toolkit=${CONTAINER_TOOLKIT_VERSION} \
+  nvidia-container-toolkit-base=${CONTAINER_TOOLKIT_VERSION} \
+  libnvidia-container-tools=${CONTAINER_TOOLKIT_VERSION} \
+  libnvidia-container1=${CONTAINER_TOOLKIT_VERSION} \
   # Enroot
   bash \
   curl \
