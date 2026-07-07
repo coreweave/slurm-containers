@@ -181,7 +181,16 @@ the topology plugins allocated a context but freed it on validation failure, lea
 NULL, which was then dereferenced in subsequent operations. The fix ensures that an empty but valid
 context (with switch_count=0 or block_count=0) is retained instead of being freed and set to NULL.
 
-This patch can be removed once it has been fixed upstream.
+As of Slurm 25.11, upstream addresses the same SEGFAULT by calling `fatal()` when no switches or
+blocks are configured, meaning slurmctld refuses to start at all on an empty topology.conf. Since
+SUNK generates topology.conf dynamically and an empty file is a legitimate state (e.g. a cluster
+with no nodes yet), this patch now also reverts that `fatal()` back to an `error()` while keeping
+the empty context. Several 25.11 code paths dereference plugin_ctx unconditionally and then check
+switch_count/block_count themselves, so retaining the empty context matches upstream's own
+assumptions.
+
+This patch can be removed if upstream handles an empty topology.conf gracefully without
+terminating the daemon.
 
 ### 0021-revert-remove-cg-limits.patch
 
