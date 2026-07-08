@@ -21,7 +21,6 @@ licenses.
   - [0006-allow-all-topology](#0006-allow-all-topology)
   - [0007-cgroup-v2](#0007-cgroup-v2)
   - [0008-job-skip-ids](#0008-job-skip-ids)
-  - [0014-25.05-fix-xcpuinfo-core-count.patch](#0014-2505-fix-xcpuinfo-core-countpatch)
   - [0015-remove-gres-core-range-matches-sock.patch](#0015-remove-gres-core-range-matches-sockpatch)
   - [0016-scontrol-dashboards](#0016-scontrol-dashboards)
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
@@ -136,12 +135,6 @@ and allows Slurm to continue to process jobs.
 If upstream was to correct the root cause of why job ids become corrupted or handle corrupted job
 ids gracefully then this patch would no longer be required.
 
-### 0014-25.05-fix-xcpuinfo-core-count.patch
-
-This patch fixes a bug in the `xcpuinfo.xcpuinfo_get_cpuspec` function that incorrectly calculates the
-number of cores on the machine - it misses the inclusion of sockets.
-ref: [SchedMD 22797](https://support.schedmd.com/show_bug.cgi?id=22797)
-
 ### 0015-remove-gres-core-range-matches-sock.patch
 
 This is reverting a change that was first introduced in the following commit:
@@ -181,7 +174,16 @@ the topology plugins allocated a context but freed it on validation failure, lea
 NULL, which was then dereferenced in subsequent operations. The fix ensures that an empty but valid
 context (with switch_count=0 or block_count=0) is retained instead of being freed and set to NULL.
 
-This patch can be removed once it has been fixed upstream.
+As of Slurm 25.11, upstream addresses the same SEGFAULT by calling `fatal()` when no switches or
+blocks are configured, meaning slurmctld refuses to start at all on an empty topology.conf. Since
+SUNK generates topology.conf dynamically and an empty file is a legitimate state (e.g. a cluster
+with no nodes yet), this patch now also reverts that `fatal()` back to an `error()` while keeping
+the empty context. Several 25.11 code paths dereference plugin_ctx unconditionally and then check
+switch_count/block_count themselves, so retaining the empty context matches upstream's own
+assumptions.
+
+This patch can be removed if upstream handles an empty topology.conf gracefully without
+terminating the daemon.
 
 ### 0021-revert-remove-cg-limits.patch
 
