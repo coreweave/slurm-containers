@@ -468,7 +468,7 @@ RUN sed -i -e 's/%admin ALL=(ALL) ALL/%admin ALL=NOPASSWD:ALL/g' /etc/sudoers &&
 
 # Default umask honors SUNK_UMASK env variable when set,
 # falling back to the Linux-conventional 0022.
-RUN echo 'umask "${SUNK_UMASK:-0022}"' > /etc/profile.d/set-umask-for-all-users.sh
+RUN sed -i '/^if \[ -d \/etc\/profile.d \]; then$/i umask "${SUNK_UMASK:-0022}"' /etc/profile
 
 ADD bashrc /tmp/bashrc
 RUN cat /tmp/bashrc >> /etc/bash.bashrc && rm /tmp/bashrc
