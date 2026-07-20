@@ -272,6 +272,9 @@ RUN arch=$(dpkg --print-architecture) && \
 FROM $PARENT_IMAGE AS controller
 
 ARG DEBIAN_FRONTEND=noninteractive
+# Wait up to 60s for the dpkg/apt lock instead of failing immediately, to avoid
+# s6-managed apt operations racing each other for the lock at runtime.
+RUN echo 'DPkg::Lock::Timeout "60";' | tee /etc/apt/apt.conf.d/99timeout
 RUN apt-get -qq update && \
   apt-get -qq install -y --no-install-recommends \
   ca-certificates
