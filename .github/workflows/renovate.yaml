@@ -1,0 +1,73 @@
+# SPDX-FileCopyrightText: 2026 CoreWeave, Inc.
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+
+# Learn more about Renovate: https://docs.renovatebot.com/
+# Runs Renovate inline (this repo is public and cannot call the org's internal
+# reusable run-renovate workflow); scoped to this repository only.
+name: Renovate
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Dry Run
+        default: "false"
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+      log-level:
+        description: Log Level
+        default: debug
+        required: false
+  schedule:
+    # Run every Tuesday at 10p
+    - cron: "0 22 * * 2"
+  push:
+    branches:
+      - main
+    paths:
+      - .github/renovate.json5
+      - .github/workflows/renovate.yaml
+
+# Only run a single renovate workflow at a time
+concurrency:
+  group: run-renovate-bot
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: cw
+    container: ghcr.io/renovatebot/renovate:43.83.2@sha256:ed79e74bf9ea29466af466c25145bfdcbfc0d26f7a2760d34c6958a49e4cc567
+    steps:
+      - name: Generate token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ secrets.ORG_RENOVATE_CLIENTID }}
+          private-key: ${{ secrets.ORG_RENOVATE_PRIVATEKEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Renovate
+        run: renovate
+        env:
+          RENOVATE_TOKEN: ${{ steps.app-token.outputs.token }}
+          RENOVATE_CONFIG_FILE: .github/renovate.json5
+          RENOVATE_PLATFORM: github
+          RENOVATE_PLATFORM_COMMIT: "true"
+          RENOVATE_AUTODISCOVER: "true"
+          RENOVATE_AUTODISCOVER_FILTER: ${{ github.repository }}
+          RENOVATE_DRY_RUN: ${{ inputs.dry-run == 'true' && 'full' || '' }}
+          LOG_LEVEL: ${{ inputs.log-level || 'debug' }}

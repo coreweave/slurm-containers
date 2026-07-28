@@ -1,0 +1,72 @@
+{
+  // Renovate config for slurm-containers. Tracks nccl-tests base images in the
+  // build-images.yaml matrix, keeping each CUDA/OS row on the newest build in its stream.
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: [
+    "github>coreweave/renovate-config",
+    ":semanticCommitTypeAll(chore)",
+  ],
+  semanticCommitScope: "deps",
+  commitBodyTable: false,
+  commitMessageLowerCase: "never",
+  semanticCommits: "auto",
+  // Scope Renovate to only the nccl-tests custom manager. Dependabot owns
+  // github-actions and Dockerfile updates; disabling the other managers here
+  // avoids duplicate/competing PRs.
+  enabledManagers: ["custom.regex"],
+  customManagers: [
+    {
+      // Pick up the nccl-tests base images embedded in the build-settings matrix.
+      customType: "regex",
+      managerFilePatterns: ["/\\.github/workflows/build-images\\.ya?ml$/"],
+      matchStrings: [
+        "image: (?<depName>ghcr\\.io/coreweave/nccl-tests):(?<currentValue>\\S+)",
+      ],
+      datasourceTemplate: "docker",
+    },
+  ],
+  packageRules: [
+    {
+      // nccl-tests tags encode CUDA version, os/variant, and nccl version:
+      //   {cudaMaj}.{cudaMin}.{cudaPatch}-devel-ubuntu{os}-nccl{maj}.{min}.{patch}-1-{sha}
+      //
+      // We want each row to stay on its CUDA major.minor and OS while still bumping
+      // the CUDA patch and nccl version. Renovate's regex versioning only has one
+      // `compatibility` group (a frozen value) and it must be a single contiguous
+      // span. CUDA major.minor and the OS are the two parts we need frozen, but the
+      // CUDA patch we want to bump sits between them, so no single compatibility
+      // span can cover both. We therefore freeze only os+variant here (contiguous)
+      // and order by CUDA patch (major slot) then nccl version (minor/patch/build).
+      // The CUDA major.minor lock lives in the per-row matchCurrentValue rules below.
+      matchDepNames: ["ghcr.io/coreweave/nccl-tests"],
+      versioning: "regex:^(?<cudamaj>\\d+)\\.(?<cudamin>\\d+)\\.(?<major>\\d+)(?<compatibility>-devel-ubuntu\\d+\\.\\d+)-nccl(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-.*$",
+      // Each row still resolves to the single newest tag in its own stream, but all
+      // rows are bundled into one branch/PR so a shared nccl bump doesn't spam PRs.
+      separateMinorPatch: false,
+      separateMajorMinor: false,
+      groupName: "nccl-tests base images",
+      // CUDA-patch bumps land in the major slot; keep the commit type uniform.
+      semanticCommitType: "chore",
+    },
+    {
+      // Exclude noisy tag variants (-testing- prereleases and -arm single-arch builds).
+      matchDepNames: ["ghcr.io/coreweave/nccl-tests"],
+      allowedVersions: "!/(-testing-|-arm$)/",
+    },
+    // Per-row locks: each matrix entry (CUDA major.minor + OS) stays within its own
+    // stream. All rows are bundled into one branch/PR via the groupName above, so no
+    // per-row branch prefix is needed. When a new CUDA line is added to
+    // build-images.yaml, add a matching rule here.
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^12\\.2\\..*ubuntu22\\.04/", allowedVersions: "/^12\\.2\\..*ubuntu22\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^12\\.4\\..*ubuntu22\\.04/", allowedVersions: "/^12\\.4\\..*ubuntu22\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^12\\.8\\..*ubuntu22\\.04/", allowedVersions: "/^12\\.8\\..*ubuntu22\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^12\\.9\\..*ubuntu22\\.04/", allowedVersions: "/^12\\.9\\..*ubuntu22\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^13\\.0\\..*ubuntu22\\.04/", allowedVersions: "/^13\\.0\\..*ubuntu22\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^13\\.1\\..*ubuntu22\\.04/", allowedVersions: "/^13\\.1\\..*ubuntu22\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^13\\.2\\..*ubuntu22\\.04/", allowedVersions: "/^13\\.2\\..*ubuntu22\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^12\\.9\\..*ubuntu24\\.04/", allowedVersions: "/^12\\.9\\..*ubuntu24\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^13\\.0\\..*ubuntu24\\.04/", allowedVersions: "/^13\\.0\\..*ubuntu24\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^13\\.1\\..*ubuntu24\\.04/", allowedVersions: "/^13\\.1\\..*ubuntu24\\.04/" },
+    { matchDepNames: ["ghcr.io/coreweave/nccl-tests"], matchCurrentValue: "/^13\\.2\\..*ubuntu24\\.04/", allowedVersions: "/^13\\.2\\..*ubuntu24\\.04/" },
+  ],
+}
