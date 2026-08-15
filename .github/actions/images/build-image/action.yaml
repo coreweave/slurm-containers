@@ -41,6 +41,10 @@ inputs:
     description: "The GitHub token to use for authentication."
     required: true
     default: ""
+  git-clone-token:
+    description: "Token used to authenticate git clones of private CoreWeave repos during the build (e.g. secrets.ORG_REPO_READ_ONLY)."
+    required: true
+    default: ""
 
 outputs:
   image_name_with_tag:
@@ -61,6 +65,23 @@ runs:
       uses: ./.github/actions/images/build-docker-config
       with:
         github-token: ${{ inputs.github-token }}
+
+    - name: Write git clone netrc
+      id: write-netrc
+      shell: bash
+      env:
+        GIT_CLONE_TOKEN: ${{ inputs.git-clone-token }}
+      run: |
+        _netrc_folder="${GITHUB_WORKSPACE}/_tmp/git"
+        _netrc_file="${_netrc_folder}/netrc"
+        mkdir -p "${_netrc_folder}"
+        cat > "${_netrc_file}" <<EOF
+        machine github.com
+        login x-access-token
+        password ${GIT_CLONE_TOKEN}
+        EOF
+        chmod 600 "${_netrc_file}"
+        echo "netrc_file=${_netrc_file}" >> "$GITHUB_OUTPUT"
 
     - name: Determine image tag
       id: determine-tag
@@ -123,9 +144,16 @@ runs:
         # Using suggested cache compression options from https://github.com/moby/buildkit#registry-push-image-and-cache-separately
         buildx-args: |
           --platform=linux/amd64,linux/arm64
+          --secret id=netrc,src=${{ steps.write-netrc.outputs.netrc_file }}
           ${{ inputs.buildx-args }}
           --cache-from=type=registry,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
           --cache-to=type=registry,image-manifest=true,mode=max,compression=zstd,compression-level=1,ignore-error=true,ref=${{ env.CI_CACHE_IMAGE }}:${{ steps.compute-image-name-hash.outputs.hash }}
+
+    - name: Remove git clone netrc
+      if: always()
+      shell: bash
+      run: |
+        rm -f "${{ steps.write-netrc.outputs.netrc_file }}"
 
     - name: Output image name
       id: output-image-name

@@ -236,7 +236,11 @@ FROM builder AS nsscache
 ARG NSSCACHE_VERSION
 WORKDIR /build
 # Patch default shell from empty string to configurable value in `ldap_default_shell` in nsscahe.conf
-RUN cd /build && \
+# coreweave/nsscache is a private repo. The build mounts a netrc secret to authenticate the clone;
+# the credentials never land in an image layer or the build cache.
+RUN --mount=type=secret,id=netrc,target=/root/.netrc \
+  export HOME=/root && \
+  cd /build && \
   git clone https://github.com/coreweave/nsscache.git && \
   cd nsscache/ && \
   git checkout ${NSSCACHE_VERSION} && \
