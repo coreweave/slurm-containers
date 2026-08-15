@@ -37,6 +37,10 @@ inputs:
     description: "The GitHub token to use for authentication."
     required: true
     default: ""
+  git-clone-token:
+    description: "Token used to authenticate git clones of private CoreWeave repos during the build (e.g. secrets.ORG_REPO_READ_ONLY)."
+    required: true
+    default: ""
   buildx-args-common:
     description: "Extra arguments to pass to the `buildx build` command for both base and extras images."
     required: false
@@ -85,6 +89,7 @@ runs:
         doppler-token: ${{ inputs.doppler-token }}
         registry-path: ${{ inputs.registry-path }}
         github-token: ${{ inputs.github-token }}
+        git-clone-token: ${{ inputs.git-clone-token }}
         buildx-args: |
           --target controller
           ${{ inputs.buildx-args-common }}
@@ -102,6 +107,7 @@ runs:
         doppler-token: ${{ inputs.doppler-token }}
         registry-path: ${{ inputs.registry-path }}
         github-token: ${{ inputs.github-token }}
+        git-clone-token: ${{ inputs.git-clone-token }}
         buildx-args: |
           --target controller-extras
           ${{ inputs.buildx-args-common }}
