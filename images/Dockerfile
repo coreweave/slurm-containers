@@ -384,6 +384,8 @@ RUN apt-get -qq update && \
   net-tools \
   numactl \
   patch \
+  quota \
+  quotatool \
   sudo \
   wget && \
   apt-get -qq clean && \
