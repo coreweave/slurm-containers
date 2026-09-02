@@ -4,7 +4,9 @@
 
 # Learn more about Renovate: https://docs.renovatebot.com/
 # Runs Renovate inline (this repo is public and cannot call the org's internal
-# reusable run-renovate workflow); scoped to this repository only.
+# reusable run-renovate workflow); scoped to this repository only. Setup runs on
+# the host runner and renovatebot/github-action runs Renovate in its container,
+# which needs a Docker daemon (hence the dind runner).
 name: Renovate
 
 on:
@@ -43,8 +45,7 @@ permissions:
 jobs:
   renovate:
     name: Renovate
-    runs-on: cw
-    container: ghcr.io/renovatebot/renovate:43.83.2@sha256:ed79e74bf9ea29466af466c25145bfdcbfc0d26f7a2760d34c6958a49e4cc567
+    runs-on: cw-dind-small
     steps:
       - name: Generate token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -61,10 +62,12 @@ jobs:
           token: ${{ steps.app-token.outputs.token }}
 
       - name: Renovate
-        run: renovate
+        uses: renovatebot/github-action@39b914146caeff8cd512e61c8992f1d5913af85c # v46.2.5
+        with:
+          configurationFile: .github/renovate.json5
+          token: ${{ steps.app-token.outputs.token }}
+          renovate-version: "44.59.2"
         env:
-          RENOVATE_TOKEN: ${{ steps.app-token.outputs.token }}
-          RENOVATE_CONFIG_FILE: .github/renovate.json5
           RENOVATE_PLATFORM: github
           RENOVATE_PLATFORM_COMMIT: "true"
           RENOVATE_AUTODISCOVER: "true"
