@@ -40,20 +40,6 @@ env:
   combined_image_names_artifact_file: built_image_names.json
 
   build-settings: |
-    - os: ubuntu24.04
-      controller_parent_image: ubuntu:noble-20260210.1
-      python_version: '3.12'
-      cuda:
-        - name: cu129
-          image: ghcr.io/coreweave/nccl-tests:12.9.1-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
-        - name: cu130
-          image: ghcr.io/coreweave/nccl-tests:13.0.2-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
-        - name: cu131
-          image: ghcr.io/coreweave/nccl-tests:13.1.1-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
-        - name: cu132
-          image: ghcr.io/coreweave/nccl-tests:13.2.1-devel-ubuntu24.04-nccl2.30.4-1-2eedd7c
-      slurm_pmix_version: pmix2
-      libjson_version: 5
     - os: ubuntu22.04
       controller_parent_image: ubuntu:jammy-20240911.1
       python_version: '3.10'
