@@ -1,35 +1,17 @@
-# SPDX-FileCopyrightText: 2025 CoreWeave, Inc.
-# SPDX-License-Identifier: GPL-2.0-or-later
-# SPDX-PackageName: slurm-containers
 ARG PARENT_IMAGE=ubuntu:22.04
-# Slurm version can be release version (ex. 22.05.7) or full git commit sha
-ARG SLURM_VERSION=25.11.6
-ARG S6_OVERLAY_VERSION=3.2.3.0
-ARG PYXIS_VERSION=0.24.0
-ARG ENROOT_VERSION=4.2.1
-ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
-ARG S2N_VERSION=1.7.5
-ARG KUBECTL_VERSION=1.36.2
-ARG S5CMD_VERSION=2.3.0-acb67716
+# Slum version can be release version (ex. 22.05.7) or full git commit sha
+ARG SLURM_VERSION=24.05.4
+ARG S6_OVERLAY_VERSION=3.2.0.2
+ARG PYXIS_VERSION=0.20.0
+ARG ENROOT_VERSION=3.5.0
+ARG LIBJWT_VERSION=1.17.2
+ARG KUBECTL_VERSION=1.29.9
+# version 4 for Ubuntu 20.04
 # version 5 for Ubuntu 22.04
 ARG LIBJSON_VERSION=5
+# pmix for Ubuntu 20.04
 # pmix2 for Ubuntu 22.04
 ARG SLURM_PMIX_VERSION=pmix2
-ARG LIBNSSCACHE_VERSION=0.21
-# NSSCACHE_VERSION points to a commit fixing an occasionally incorrect assumption about a
-# `modifyTimestamp` field being present in responses.
-ARG NSSCACHE_VERSION=v0.8.0
-# This is currently only used to find the `dist-packages` location for the `nsscache` installation
-# TODO (SUNK-948): Do this dynamically
-ARG PYTHON_VERSION=3.10
-# This needs to match the `nsscache.nsscacheConfig.default.files_dir` setting in the values
-ARG NSSCACHE_FILES_DIR="/etc/nsscache"
-ARG CONTAINER_TOOLKIT_VERSION=1.19.1-1
-
-## Controller Extras args
-ARG CONDA_VERSION=py313_25.7.0-2
-ARG MICROMAMBA_VERSION=2.3.2-0
-ARG NHC_VERSION=1.4.3
 
 FROM $PARENT_IMAGE AS builder
 
@@ -44,10 +26,8 @@ RUN apt-get -qq update && \
   build-essential \
   bzip2 \
   ca-certificates \
-  cmake \
   curl \
   dialog \
-  dwarves \
   environment-modules \
   git \
   gettext-base \
@@ -57,25 +37,17 @@ RUN apt-get -qq update && \
   iputils-ping \
   krb5-user \
   less \
-  libcurl4-gnutls-dev \
-  libdb-dev \
   libdbus-1-dev \
-  libgnutls28-dev \
-  libhdf5-dev \
-  libhdf5-serial-dev \
-  hdf5-tools \
   libhttp-parser-dev \
   libhttp-parser2.9 \
   libhwloc-dev \
   libjansson-dev \
   libjson-c${LIBJSON_VERSION} \
   libjson-c-dev \
-  libldap2-dev \
   liblua5.3-dev \
   liblz4-dev \
   libmunge-dev \
   libmysqlclient-dev \
-  libnss-db \
   libnss-sss \
   libnuma-dev \
   libnuma1 \
@@ -87,9 +59,10 @@ RUN apt-get -qq update && \
   libpam0g \
   libpam0g-dev \
   libpci-dev \
+  libpmi2-0 \
+  libpmi2-0-dev \
   libpmix-dev \
   libreadline-dev \
-  libsasl2-dev \
   libsecret-1-0 \
   libssl-dev \
   libsubunit0 \
@@ -103,8 +76,6 @@ RUN apt-get -qq update && \
   munge \
   net-tools \
   numactl \
-  pip \
-  python3-dev \
   pkg-config \
   realmd \
   tini \
@@ -115,31 +86,15 @@ RUN apt-get -qq update && \
 FROM builder AS libjwt-builder
 ARG LIBJWT_VERSION
 WORKDIR /build
-# Download the source
-RUN curl --fail --show-error --silent --location \
-  --remote-name https://github.com/benmcollins/libjwt/releases/download/v${LIBJWT_VERSION}/libjwt-${LIBJWT_VERSION}.tar.bz2
-# Extract the source
-RUN tar -xvf libjwt-${LIBJWT_VERSION}.tar.bz2
-# Set working directory to the extracted source
-WORKDIR /build/libjwt-${LIBJWT_VERSION}
-# Prepare the build system
-RUN autoreconf -fi
-# Configure the build
-RUN ./configure --disable-doxygen-doc --disable-dependency-tracking --without-examples --prefix=/build/libjwt-install/
-# Build libjwt
-RUN make
-# Install libjwt
-RUN make install
-
-# Build s2n-tls for Slurm's tls/s2n plugin (25.11+); shipped dormant, TlsType unset
-FROM builder AS s2n-builder
-ARG S2N_VERSION
-WORKDIR /build
-RUN git clone --depth 1 --branch v${S2N_VERSION} https://github.com/aws/s2n-tls.git
-WORKDIR /build/s2n-tls
-RUN cmake . -B build/ -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=/build/s2n-install
-RUN cmake --build build/ -j $(nproc)
-RUN cmake --install build/
+RUN cd /build && \
+  curl --fail --show-error --silent --location \
+  --remote-name https://github.com/benmcollins/libjwt/releases/download/v${LIBJWT_VERSION}/libjwt-${LIBJWT_VERSION}.tar.bz2 && \
+  tar -xvf libjwt-${LIBJWT_VERSION}.tar.bz2 && \
+  cd libjwt-${LIBJWT_VERSION} && \
+  autoreconf -fi && \
+  ./configure --disable-doxygen-doc --disable-dependency-tracking --without-examples --prefix=/build/libjwt-install/ && \
+  make && \
+  make install
 
 FROM builder AS slurm-builder
 # Slum version can be release version (ex. 22.05.7) or full git commit sha
@@ -154,24 +109,19 @@ COPY --from=libjwt-builder /build/libjwt-install/include/jwt.h /usr/local/includ
 # Copying entire directory to preserve symlinks.
 COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
 
-# Install s2n-tls
-COPY --from=s2n-builder /build/s2n-install/include/ /usr/local/include/
-COPY --from=s2n-builder /build/s2n-install/lib/ /usr/local/lib/
-
 # Apply any patches
 COPY patches/ patches/
-RUN find /build/patches/slurm -type f -name *.patch -print0 | \
+RUN find /build/patches -type f -name *.patch -print0 | \
   sort -z | \
   xargs -t -0 -r -n 1 patch -p1 -d slurm-$SLURM_VERSION -i
 # Build Slurm
 ARG SLURM_PMIX_VERSION
 WORKDIR /build/slurm-$SLURM_VERSION
 RUN arch=$(uname -m) && \
-  ./configure --prefix=/usr --libdir=/usr/lib/${arch}-linux-gnu --sysconfdir=/etc/slurm \
-  --enable-pam --with-pam_dir=/usr/lib/${arch}-linux-gnu/security \
-  --with-hdf5 --disable-glibtest --disable-gtktest \
+  ./configure --prefix=/usr --sysconfdir=/etc/slurm --disable-glibtest --disable-gtktest --enable-pam  \
+  --without-hdf5 \
   --with-pmix=/usr/lib/${arch}-linux-gnu/$SLURM_PMIX_VERSION \
-  --with-json=yes --with-yaml=yes --with-http-parser=yes --with-jwt=/usr/local/ --with-s2n=/usr/local/ --with-bpf=yes
+  --with-json=yes --with-yaml=yes --with-http-parser=yes --with-jwt=/usr/local/ --with-bpf=yes
 COPY build/Makefile.docs doc/Makefile
 
 RUN mkdir /build/slurm-$SLURM_VERSION/INSTALLDIR && \
@@ -179,20 +129,6 @@ RUN mkdir /build/slurm-$SLURM_VERSION/INSTALLDIR && \
   make -j $(nproc) contrib && \
   make install DESTDIR=/build/slurm-$SLURM_VERSION/INSTALLDIR && \
   make install-contrib DESTDIR=/build/slurm-$SLURM_VERSION/INSTALLDIR
-
-# Generate BTF from DWARF debug info for eBPF probe offset resolution
-RUN arch=$(uname -m) && \
-  mkdir -p /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm && \
-  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/slurmctld.btf \
-  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/sbin/slurmctld && \
-  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/libslurmfull.btf \
-  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/lib/${arch}-linux-gnu/slurm/libslurmfull.so && \
-  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/topology_block.btf \
-  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/lib/${arch}-linux-gnu/slurm/topology_block.so && \
-  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/slurmd.btf \
-  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/sbin/slurmd && \
-  pahole --btf_encode_detached /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/share/slurm/slurmstepd.btf \
-  /build/slurm-$SLURM_VERSION/INSTALLDIR/usr/sbin/slurmstepd
 
 ## Install pyxis
 ## Requires enroot version 3.1.0
@@ -212,9 +148,10 @@ RUN cd /build && \
 
 FROM builder AS libnvidia
 # Stage libnvidia-container repo for enroot dependencies (e.g. nvidia-container-cli)
-RUN curl --fail --show-error --silent --location https://nvidia.github.io/libnvidia-container/gpgkey | \
+RUN distribution=$(. /etc/os-release; echo $ID$VERSION_ID) && \
+  curl --fail --show-error --silent --location https://nvidia.github.io/libnvidia-container/gpgkey | \
   gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg && \
-  curl --fail --show-error --silent --location https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  curl --fail --show-error --silent --location https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
   sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
   tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
@@ -239,48 +176,10 @@ RUN arch=$(uname -m) && \
   tar -C /build -xpf /tmp/s6-overlay-noarch.tar.xz && \
   tar -C /build -xpf /tmp/s6-overlay-${arch}.tar.xz
 
-FROM builder AS libnss-cache
-ARG LIBNSSCACHE_VERSION
-WORKDIR /build
-RUN cd /build && \
-  git clone https://github.com/google/libnss-cache.git && \
-  cd libnss-cache && \
-  git checkout version/${LIBNSSCACHE_VERSION} && \
-  make install
-
-FROM builder AS nsscache
-ARG NSSCACHE_VERSION
-WORKDIR /build
-# Patch default shell from empty string to configurable value in `ldap_default_shell` in nsscahe.conf
-# coreweave/nsscache is a private repo. The build mounts a netrc secret to authenticate the clone;
-# the credentials never land in an image layer or the build cache.
-RUN --mount=type=secret,id=netrc,target=/root/.netrc \
-  export HOME=/root && \
-  cd /build && \
-  git clone https://github.com/coreweave/nsscache.git && \
-  cd nsscache/ && \
-  git checkout ${NSSCACHE_VERSION} && \
-  mkdir -p /bundle && \
-  git bundle create /bundle/coreweave-nsscache-${NSSCACHE_VERSION}.gitbundle coreweave --tags && \
-  find /usr/lib/python3* -name EXTERNALLY-MANAGED -delete && \
-  pip install -r requirements.txt && \
-  pip install .
-
-# Stage s5cmd
-FROM builder AS s5cmd
-ARG S5CMD_VERSION
-WORKDIR /build
-RUN arch=$(dpkg --print-architecture) && \
-  curl --fail --show-error --silent --location \
-  --remote-name https://github.com/coreweave/s5cmd/releases/download/v${S5CMD_VERSION}/s5cmd_${S5CMD_VERSION}_linux_${arch}.deb
-
 # Actual container artifact
 FROM $PARENT_IMAGE AS controller
 
 ARG DEBIAN_FRONTEND=noninteractive
-# Wait up to 60s for the dpkg/apt lock instead of failing immediately, to avoid
-# s6-managed apt operations racing each other for the lock at runtime.
-RUN echo 'DPkg::Lock::Timeout "60";' | tee /etc/apt/apt.conf.d/99timeout
 RUN apt-get -qq update && \
   apt-get -qq install -y --no-install-recommends \
   ca-certificates
@@ -291,9 +190,9 @@ COPY --from=libnvidia /etc/apt/sources.list.d/nvidia-container-toolkit.list /etc
 ARG MUNGE_USER=400
 ARG SLURM_USER=401
 
-RUN groupadd --gid $MUNGE_USER munge && \
+RUN addgroup --gid $MUNGE_USER munge && \
   useradd munge -u $MUNGE_USER -g $MUNGE_USER -s /usr/sbin/nologin && \
-  groupadd --gid $SLURM_USER slurm && \
+  addgroup --gid $SLURM_USER slurm && \
   useradd slurm -u $SLURM_USER -g $SLURM_USER -s /usr/sbin/nologin
 
 # Runtime deps
@@ -315,7 +214,6 @@ RUN groupadd --gid $MUNGE_USER munge && \
 
 # Install runtime dependencies and libnvidia-container for enroot dependencies (e.g. nvidia-container-cli)
 ARG LIBJSON_VERSION
-ARG CONTAINER_TOOLKIT_VERSION
 RUN apt-get -qq update && \
   apt-get -qq install -y --no-install-recommends \
   libaudit1 \
@@ -337,22 +235,17 @@ RUN apt-get -qq update && \
   # Missed with above command
   libjson-c${LIBJSON_VERSION} \
   libmysqlclient-dev \
+  libpmi2-0 \
   libpmix-dev \
   libyaml-0-2 \
   munge \
   environment-modules \
-  # HDF5 runtime libraries
-  libhdf5-103-1 \
-  libhdf5-hl-100 \
-  libhdf5-cpp-103-1 \
   # Needed for init.sh script
   gettext-base \
   openssh-server \
   # libnvidia-container
-  nvidia-container-toolkit=${CONTAINER_TOOLKIT_VERSION} \
-  nvidia-container-toolkit-base=${CONTAINER_TOOLKIT_VERSION} \
-  libnvidia-container-tools=${CONTAINER_TOOLKIT_VERSION} \
-  libnvidia-container1=${CONTAINER_TOOLKIT_VERSION} \
+  libnvidia-container-tools \
+  nvidia-container-toolkit \
   # Enroot
   bash \
   curl \
@@ -375,28 +268,23 @@ RUN apt-get -qq update && \
   sssd-ldap \
   sssd-tools \
   # Misc
-  bash-completion \
-  binutils \
-  gdb \
   htop \
   inetutils-ping \
   inetutils-traceroute \
   net-tools \
   numactl \
-  patch \
   sudo \
-  wget && \
+  wget \
+  bash-completion && \
   apt-get -qq clean && \
   rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Install libjwt
 COPY --from=libjwt-builder /build/libjwt-install/lib/ /usr/local/lib/
 
-# Install s2n-tls runtime libraries (required for tls/s2n plugin)
-COPY --from=s2n-builder /build/s2n-install/lib/ /usr/local/lib/
-
 RUN arch=$(uname -m) && \
-  ln -s /usr/lib/${arch}-linux-gnu/libnvidia-ml.so.1 /usr/lib/${arch}-linux-gnu/libnvidia-ml.so
+  ln -s /usr/lib/${arch}-linux-gnu/libnvidia-ml.so.1 /usr/lib/${arch}-linux-gnu/libnvidia-ml.so && \
+  ldconfig
 
 # SSH Configuration
 RUN echo "HostKey /opt/sunk/etc/ssh/ssh_host_rsa_key" >> /etc/ssh/sshd_config && \
@@ -416,16 +304,12 @@ RUN echo "HostKey /opt/sunk/etc/ssh/ssh_host_rsa_key" >> /etc/ssh/sshd_config &&
 # Install enroot
 ARG ENROOT_VERSION
 COPY --from=enroot /build/ /tmp/enroot/
-COPY patches/enroot/ /build/patches/enroot/
 RUN arch=$(dpkg --print-architecture) && \
   apt-get install -y \
   /tmp/enroot/enroot-hardened_${ENROOT_VERSION}-1_${arch}.deb \
   /tmp/enroot/enroot-hardened+caps_${ENROOT_VERSION}-1_${arch}.deb && \
   sed -i 's/"--ldconfig=@$(command -v ldconfig.real || command -v ldconfig)"//' /etc/enroot/hooks.d/98-nvidia.sh && \
-  find /build/patches/enroot -type f -name *.patch -print0 | \
-  sort -z | \
-  xargs -t -0 -r -n 1 patch -p2 -d /usr/lib/enroot -i && \
-  rm -rf /tmp/enroot /build/patches
+  rm -rf /tmp/enroot
 
 # Install s6-overlay
 COPY --from=s6-overlay /build/ /
@@ -438,8 +322,9 @@ COPY --from=pyxis-builder /build/pyxis-${PYXIS_VERSION}/INSTALLDIR/ /
 
 # Install Slurm
 ARG SLURM_VERSION
-COPY --from=slurm-builder /build/slurm-$SLURM_VERSION/INSTALLDIR/ /
-RUN ldconfig
+COPY --from=slurm-builder /build/slurm-$SLURM_VERSION/INSTALLDIR/usr /usr
+COPY --from=slurm-builder /build/slurm-$SLURM_VERSION/INSTALLDIR/lib /lib
+
 
 # Add slurm bash completion
 COPY --chown=root:root --chmod=644 --from=slurm-builder /build/slurm-$SLURM_VERSION/contribs/slurm_completion_help/slurm_completion.sh /etc/profile.d/slurm_completion.sh
@@ -451,25 +336,6 @@ RUN cd /tmp && \
   curl --fail --show-error --silent --location \
   --remote-name "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" && \
   install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-# Install libnss-cache
-COPY --from=libnss-cache /usr/lib/libnss_cache* /usr/lib
-
-RUN rm /lib/libnss_cache.so.2 && \
-  ln -sf /lib/libnss_cache.so.2.0 /lib/libnss_cache.so.2
-
-# Install nsscache
-ARG PYTHON_VERSION
-COPY --from=nsscache /usr/local/bin/nsscache /usr/local/bin/nsscache
-COPY --from=nsscache /usr/local/lib/python${PYTHON_VERSION}/dist-packages /usr/local/lib/python${PYTHON_VERSION}/dist-packages
-
-# Ship the nsscache source as a git bundle so the private fork's source is
-# redistributable alongside the installed package.
-COPY --from=nsscache /bundle/ /usr/local/src/nsscache/
-
-# Add symlinks for /etc/*.cache -> ${NSSCACHE_FILES_DIR}/*.cache
-ARG NSSCACHE_FILES_DIR
-RUN for f in passwd group shadow sshkey; do ln -s ${NSSCACHE_FILES_DIR}/$f.cache /etc/$f.cache; done
 
 RUN mkdir -p \
   /run/munge \
@@ -489,18 +355,14 @@ COPY ./bin /usr/share/sunk/bin
 RUN echo "/usr/share/sunk/bin/reboot.sh" > /usr/bin/reboot && \
   chmod +x /usr/bin/reboot
 
-RUN echo "/usr/share/sunk/bin/reboot.sh" > /usr/sbin/reboot && \
-  chmod +x /usr/sbin/reboot
-
 RUN /usr/share/sunk/bin/env-to-modulefile.sh
 
 # Add sudoer groups to nopasswd
 RUN sed -i -e 's/%admin ALL=(ALL) ALL/%admin ALL=NOPASSWD:ALL/g' /etc/sudoers && \
   sed -i -e 's/%sudo ALL=(ALL:ALL) ALL/%sudo ALL=NOPASSWD:ALL/g' /etc/sudoers
 
-# Default umask honors SUNK_UMASK env variable when set,
-# falling back to the Linux-conventional 0022.
-RUN sed -i '/^if \[ -d \/etc\/profile.d \]; then$/i umask "${SUNK_UMASK:-0022}"' /etc/profile
+# Set umask to read/write for user and group but noone else
+RUN echo "umask u=rwx,g=rwx,o=" > /etc/profile.d/set-umask-for-all-users.sh
 
 ADD bashrc /tmp/bashrc
 RUN cat /tmp/bashrc >> /etc/bash.bashrc && rm /tmp/bashrc
@@ -515,120 +377,3 @@ RUN pam-auth-update --enable mkhomedir
 ENV S6_KEEP_ENV=1
 
 ENTRYPOINT ["/init"]
-
-# Controller Extras Image for Slurm Login and compute nodes
-# Should contain general tooling but not specific libraries as these live in the specific node images.
-
-# Install nhc
-FROM builder AS nhc-builder
-ARG NHC_VERSION
-WORKDIR /build
-RUN git clone https://github.com/mej/nhc.git -b ${NHC_VERSION} --depth=1 && \
-  cd nhc && \
-  ./autogen.sh && \
-  ./configure \
-  --prefix=/build/nhc/INSTALLDIR/usr \
-  --sysconfdir=/build/nhc/INSTALLDIR/etc \
-  --sbindir=/build/nhc/INSTALLDIR/usr/sbin \
-  --libexecdir=/build/nhc/INSTALLDIR/usr/lib && \
-  make install
-
-# Extras Image
-FROM controller AS controller-extras
-ARG DEBIAN_FRONTEND=noninteractive
-
-# End user utils
-RUN apt-get -qq update && \
-  apt-get -qq install -y --no-install-recommends \
-  build-essential \
-  bc \
-  bzip2 \
-  emacs \
-  fio \
-  git \
-  glances \
-  less \
-  libgl1 \
-  libglx-mesa0 \
-  locales \
-  lua-sec \
-  lua5.3 \
-  mosh \
-  nano \
-  nfs-common \
-  openjdk-8-jre \
-  pdsh \
-  psmisc \
-  rsync \
-  s3cmd \
-  silversearcher-ag \
-  sysstat \
-  tmux \
-  unzip \
-  vim \
-  wget \
-  xz-utils \
-  # Explicitly uninstall systemd ( dependency of emacs )
-  systemd- && \
-  apt-get -qq clean && \
-  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
-RUN locale-gen en_US.UTF-8
-COPY --from=nhc-builder /build/nhc/INSTALLDIR/ /
-
-# Install s5cmd
-ARG S5CMD_VERSION
-COPY --from=s5cmd /build/ /tmp/s5cmd/
-RUN arch=$(dpkg --print-architecture) && \
-  apt-get install -y \
-  /tmp/s5cmd/s5cmd_${S5CMD_VERSION}_linux_${arch}.deb && \
-  rm -rf /tmp/s5cmd
-
-# Global environments that are useful everywhere in the cluster
-RUN echo "JAVA_HOME=/usr/lib/jvm/java-8-openjdk" >> /etc/environment && \
-  echo "NCCL_IB_HCA=ibp" >> /etc/environment && \
-  echo "NCCL_IB_PCI_RELAXED_ORDERING=1" >> /etc/environment && \
-  echo "NCCL_SOCKET_IFNAME=eth0" >> /etc/environment && \
-  echo "NVIDIA_VISIBLE_DEVICES=all" >> /etc/environment && \
-  echo "SHARP_COLL_ENABLE_PCI_RELAXED_ORDERING=1" >> /etc/environment && \
-  echo "UCX_VFS_ENABLE=no" >> /etc/environment
-
-# Add custom coreweave motd
-RUN rm /etc/update-motd.d/*
-
-# Install conda
-# A user can initialize conda for their shell with: /opt/conda/bin/conda init bash --user
-## Note, this script must end in `.sh` because their installer is janky
-ARG CONDA_VERSION
-RUN arch=$(uname -m) && \
-  curl --fail --show-error --silent --location --output /tmp/conda_installer.sh \
-  https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-${arch}.sh  && \
-  bash /tmp/conda_installer.sh -b -u -p /opt/conda && \
-  rm /tmp/conda_installer.sh
-
-RUN /opt/conda/bin/conda init bash
-
-# Install micromamba
-# A user can initialize micromamba with: micromamba shell init
-ARG MICROMAMBA_VERSION
-RUN arch=$(uname -m | sed 's/x86_//') && \
-  cd /tmp && \
-  curl --fail --show-error --silent --location \
-  --remote-name https://github.com/mamba-org/micromamba-releases/releases/download/${MICROMAMBA_VERSION}/micromamba-linux-${arch} && \
-  install micromamba-linux-${arch} /usr/local/bin/micromamba && \
-  echo "alias mm=micromamba" >> /etc/profile.d/01-aliases.sh && \
-  rm /tmp/micromamba-linux-${arch}
-
-# Add AWS CLI
-RUN arch=$(uname -m) && \
-  curl --fail --show-error --silent --location --output "awscliv2.zip" \
-  "https://awscli.amazonaws.com/awscli-exe-linux-${arch}.zip" && \
-  unzip -q awscliv2.zip && \
-  sudo ./aws/install && \
-  rm -r awscliv2.zip aws
-
-RUN echo "/usr/share/sunk/bin/reboot.sh" > /usr/bin/reboot && \
-  chmod +x /usr/bin/reboot
-
-RUN echo "/usr/share/sunk/bin/reboot.sh" > /usr/sbin/reboot && \
-  chmod +x /usr/sbin/reboot

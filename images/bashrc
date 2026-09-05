@@ -1,10 +1,5 @@
-# SPDX-FileCopyrightText: 2025 CoreWeave, Inc.
-# SPDX-License-Identifier: GPL-2.0-or-later
-# SPDX-PackageName: slurm-containers
-umask "${SUNK_UMASK:-0022}"
-
-# Set soft limit for open file descriptors
-ulimit -Sn 16384
+umask u=rwx,g=rwx,o=
+ulimit -n 16384
 
 source /etc/profile.d/bash_completion.sh
 source /etc/profile.d/slurm_completion.sh
@@ -13,8 +8,6 @@ alias dl='sinfo -t "drain&idle" -NO "NodeList:45,Comment:10,Timestamp:25,Reason:
 alias dld='sinfo -t drain -NO "NodeList:45,Comment:10,Timestamp:25,Reason:130" | uniq'
 alias downl='sinfo -t "down" -NO "NodeList:45,Comment:10,Timestamp:25,Reason:130" | uniq'
 alias sn='scontrol show node'
-alias reboot='/usr/share/sunk/bin/reboot.sh'
-alias undrain-prolog='scontrol show nodes --json | jq -r ".nodes[] | select(.reason == \"prolog pre-hook failed (sunk:verify-undrain)\") | .name" | xargs -I % sh -c "echo Undraining %; scontrol update nodename=% state=resume"'
 
 function undrain() {
   if [ "$#" -ne 1 ]
