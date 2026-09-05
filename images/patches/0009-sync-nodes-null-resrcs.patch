@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/slurmctld/read_config.c b/src/slurmctld/read_config.c
+index 198045638e..2636194970 100644
+--- a/src/slurmctld/read_config.c
++++ b/src/slurmctld/read_config.c
+@@ -2395,7 +2395,7 @@ static int _sync_nodes_to_active_job(job_record_t *job_ptr)
+ 	int cnt = 0;
+ 	uint32_t node_flags;
+ 	node_record_t *node_ptr;
+-	bitstr_t *node_bitmap, *orig_job_node_bitmap;
++	bitstr_t *node_bitmap, *orig_job_node_bitmap = NULL;
+ 	bool job_resized = false;
+ 
+ 	if (job_ptr->node_bitmap_cg) /* job completing */
+@@ -2403,7 +2403,8 @@ static int _sync_nodes_to_active_job(job_record_t *job_ptr)
+ 	else
+ 		node_bitmap = job_ptr->node_bitmap;
+ 
+-	orig_job_node_bitmap = bit_copy(job_ptr->job_resrcs->node_bitmap);
++	if (job_ptr->job_resrcs)
++		orig_job_node_bitmap = bit_copy(job_ptr->job_resrcs->node_bitmap);
+ 
+ 	job_ptr->node_cnt = bit_set_count(node_bitmap);
+ 	for (int i = 0; (node_ptr = next_node_bitmap(node_bitmap, &i)); i++) {

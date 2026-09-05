@@ -72,14 +72,17 @@ client library instead of making new connections for each message and should be 
 We have not submitted this to the upstream project because their current stance is not to address
 the various other bugs we have reported and because this is considered a feature request, not a bug.
 
-## 0008-job-skip-ids
+## 0009-sync-nodes-null-resrcs
 
-This patch adds a `SlurmJobSkipIds` option to `slurm.conf` (a comma-separated list of job ids). When
-`slurmctld` loads saved job state on startup, any job whose id matches an entry in the list is
-deleted instead of being restored. This is useful when a job record becomes corrupted: on recovery,
-`slurmctld` will fail to process the job and crash, which prevents the controller from starting and
-blocks all scheduling. Skipping the offending job ids breaks the loop and allows `slurmctld` to
-finish recovery and continue processing jobs.
+This patch guards against a NULL `job_resrcs` dereference in `_sync_nodes_to_active_job` during
+state recovery. On startup, `slurmctld` syncs node state for every RUNNING or COMPLETING job and
+unconditionally copies `job_ptr->job_resrcs->node_bitmap`. A job that recovers in a COMPLETING (or
+otherwise active) state with its resources already freed has a NULL `job_resrcs`, so the copy
+dereferences NULL and crashes the controller, which then crash-loops and blocks all scheduling.
 
-If upstream was to correct the root cause of why job records become corrupted, or handle corrupted
-job records gracefully, then this patch would no longer be required.
+The patch only performs the copy when `job_resrcs` is set. The copied bitmap is only consumed on the
+job-resize path (which requires a RUNNING job that has resources), so skipping it for a job without
+resources is safe.
+
+This is the root-cause fix. If upstream adds the same guard, or otherwise handles a freed
+`job_resrcs` gracefully during recovery, then this patch would no longer be required.
