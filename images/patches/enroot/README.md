@@ -12,6 +12,7 @@ require validation.
 - [enroot Patches](#enroot-patches)
   - [Table of Contents](#table-of-contents)
   - [0001-fix-pid](#0001-fix-pid)
+  - [0002-cwcr-lota](#0002-cwcr-lota)
 
 ## 0001-fix-pid
 
@@ -21,3 +22,9 @@ function in `runtime.sh` to strip the expected prefix and match against known co
 suffixes. This patch aims to resolve issues with the `--container-name:exec` flag and the
 `enroot list -f` command, which currently break due to incorrect PID identification.
 
+## 0002-cwcr-lota
+
+This patch adds the `X-Storage-Upstream: Lota` request header when Enroot imports images from
+`cwcr.io` registries. It also permits HTTP for those requests so Enroot can follow CWCR's
+presigned redirects to CWLOTA while keeping the initial registry request on HTTPS. Other
+registries and Enroot authentication requests retain the upstream protocol restrictions.
