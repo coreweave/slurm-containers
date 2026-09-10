@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/slurmctld/job_scheduler.c b/src/slurmctld/job_scheduler.c
+index f2652949a6..44f0727880 100644
+--- a/src/slurmctld/job_scheduler.c
++++ b/src/slurmctld/job_scheduler.c
+@@ -1477,9 +1477,11 @@ next_part:
+ 				job_ptr = find_job_record(job_ptr->array_job_id);
+ 				job_queue_rec->job_ptr = job_ptr;
+ 			}
+-			if (!job_ptr || !IS_JOB_PENDING(job_ptr)) {
++			if (!job_ptr ||
++			    !IS_JOB_PENDING(job_ptr) || /* started in other part/qos */
++			    !job_ptr->priority) { /* held from fail in other part/qos */
+ 				xfree(job_queue_rec);
+-				continue;	/* started in other partition */
++				continue;
+ 			}
+ 
+ 			use_prefer = job_queue_rec->use_prefer;

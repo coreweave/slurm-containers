@@ -83,3 +83,26 @@ finish recovery and continue processing jobs.
 
 If upstream was to correct the root cause of why job records become corrupted, or handle corrupted
 job records gracefully, then this patch would no longer be required.
+
+## 0009-sched-skip-held-job
+
+Backport of SchedMD commit `d8c64b0188` (Ticket 22041), first released in 24.11.2 and never
+backported to the 24.05 line. A job that can run in multiple partitions or QOS appears in the
+scheduling queue once per partition/QOS. When an earlier attempt held the job (priority 0), later
+queue entries for the same job were still processed, which could leave the job record in a bad state
+with no `job_resrcs`. The patch skips a queued job whose priority is 0 (held from a failed attempt
+in another partition/QOS), addressing one root cause of records with a NULL `job_resrcs`.
+
+This patch is re-anchored for 24.05: the upstream hunk does not apply as-is because 24.05 nests the
+block one level deeper and uses a different trailing comment.
+
+## 0010-sync-nodes-null-resrcs
+
+Backport of SchedMD commit `6407c8eb7c` (Ticket 22041), first released in 24.11.2 and never
+backported to the 24.05 line. During state recovery, `_sync_nodes_to_active_job` copied
+`job_ptr->job_resrcs->node_bitmap` unconditionally at the top of the function, which crashes
+`slurmctld` when a recovered active job has a NULL `job_resrcs`. The patch defers the copy to the
+node-resize path where it is actually consumed and guards it with a NULL check, logging an error
+instead of dereferencing.
+
+This is the upstream form of the fix. It applies cleanly to 24.05.
