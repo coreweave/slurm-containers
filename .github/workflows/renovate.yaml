@@ -54,7 +54,11 @@ jobs:
           app-id: ${{ secrets.ORG_RENOVATE_CLIENTID }}
           private-key: ${{ secrets.ORG_RENOVATE_PRIVATEKEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
+          # renovate-config holds the shared preset referenced by extends in
+          # .github/renovate.json5; the token needs read access to resolve it.
+          repositories: |
+            ${{ github.event.repository.name }}
+            renovate-config
 
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
