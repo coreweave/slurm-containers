@@ -72,30 +72,6 @@ client library instead of making new connections for each message and should be 
 We have not submitted this to the upstream project because their current stance is not to address
 the various other bugs we have reported and because this is considered a feature request, not a bug.
 
-## 0008-job-skip-ids
-
-This patch adds a `SlurmJobSkipIds` option to `slurm.conf` (a comma-separated list of job ids). When
-`slurmctld` loads saved job state on startup, any job whose id matches an entry in the list is
-deleted instead of being restored. This is useful when a job record becomes corrupted: on recovery,
-`slurmctld` will fail to process the job and crash, which prevents the controller from starting and
-blocks all scheduling. Skipping the offending job ids breaks the loop and allows `slurmctld` to
-finish recovery and continue processing jobs.
-
-If upstream was to correct the root cause of why job records become corrupted, or handle corrupted
-job records gracefully, then this patch would no longer be required.
-
-## 0009-sched-skip-held-job
-
-Backport of SchedMD commit `d8c64b0188` (Ticket 22041), first released in 24.11.2 and never
-backported to the 24.05 line. A job that can run in multiple partitions or QOS appears in the
-scheduling queue once per partition/QOS. When an earlier attempt held the job (priority 0), later
-queue entries for the same job were still processed, which could leave the job record in a bad state
-with no `job_resrcs`. The patch skips a queued job whose priority is 0 (held from a failed attempt
-in another partition/QOS), addressing one root cause of records with a NULL `job_resrcs`.
-
-This patch is re-anchored for 24.05: the upstream hunk does not apply as-is because 24.05 nests the
-block one level deeper and uses a different trailing comment.
-
 ## 0010-sync-nodes-null-resrcs
 
 Backport of SchedMD commit `6407c8eb7c` (Ticket 22041), first released in 24.11.2 and never
