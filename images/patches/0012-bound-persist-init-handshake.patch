@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/common/persist_conn.c b/src/common/persist_conn.c
+index 33f297b610..2fbc20d8d5 100644
+--- a/src/common/persist_conn.c
++++ b/src/common/persist_conn.c
+@@ -636,7 +636,27 @@ extern int slurm_persist_conn_open(persist_conn_t *persist_conn)
+ 			goto end_it;
+ 		}
+ 
+-		buffer = _slurm_persist_recv_msg(persist_conn, false);
++		{
++			/*
++			 * Bound the persist_init handshake. A persistent
++			 * connection created with timeout=0 (infinite) must not
++			 * wait forever to establish a connection: opening or
++			 * reopening to a peer that is up but not yet accept()ing
++			 * (e.g. a slurmctld mid-reconfigure) would otherwise
++			 * block here indefinitely, and a caller may hold locks
++			 * across this open (slurmdbd holds the
++			 * registered_clusters lock while pushing accounting
++			 * updates), deadlocking the peer's re-registration. The
++			 * infinite timeout is preserved for the
++			 * established-connection data path.
++			 */
++			int save_timeout = persist_conn->timeout;
++			if (persist_conn->timeout <= 0)
++				persist_conn->timeout =
++					slurm_conf.msg_timeout * 1000;
++			buffer = _slurm_persist_recv_msg(persist_conn, false);
++			persist_conn->timeout = save_timeout;
++		}
+ 
+ 		if (!buffer) {
+ 			if (_comm_fail_log(persist_conn)) {
