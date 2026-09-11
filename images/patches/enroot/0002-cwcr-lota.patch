@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 CoreWeave, Inc.
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-PackageName: slurm-containers
+diff --git a/src/docker.sh b/src/docker.sh
+index f9e9c4f..8af6a3e 100644
+--- a/src/docker.sh
++++ b/src/docker.sh
+@@ -126,6 +126,13 @@ docker::_download() {
+     local url_manifest="${curl_proto}://${registry}/v2/${image}/manifests/${tag}"
+     local -r url_digest="${curl_proto}://${registry}/v2/${image}/blobs/"
+
++    # Request CWLOTA-backed presigned URLs for CWCR blob downloads.
++    case "${registry}" in
++    cwcr.io|cwcr.io:*|*.cwcr.io|*.cwcr.io:*)
++        req_params+=("--proto" "=http,https" "-H" "X-Storage-Upstream: Lota")
++        ;;
++    esac
++
+     # Authenticate with the registry.
+     docker::_authenticate "${user}" "${registry}" "${url_manifest}"
+     if [ -f "${token_dir}/${registry}.$$" ]; then
