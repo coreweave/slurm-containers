@@ -1,0 +1,65 @@
+# SPDX-FileCopyrightText: 2002-2025 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+# Backport of upstream 08c788fc23 "Convert _try_to_reconfig() to closeall_except()" (Issue 50093), adapted to 24.05 listen_fds/listen_nports
+diff --git a/src/slurmctld/controller.c b/src/slurmctld/controller.c
+index 42185e4d99..2a44e5cee6 100644
+--- a/src/slurmctld/controller.c
++++ b/src/slurmctld/controller.c
+@@ -1023,18 +1023,12 @@ static void  _init_config(void)
+ static int _try_to_reconfig(void)
+ {
+ 	extern char **environ;
+-	struct rlimit rlim;
+ 	char **child_env;
+ 	pid_t pid;
+ 	int to_parent[2] = {-1, -1};
+ 
+ 	conmgr_quiesce(true);
+ 
+-	if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+-		error("getrlimit(RLIMIT_NOFILE): %m");
+-		rlim.rlim_cur = 4096;
+-	}
+-
+ 	child_env = env_array_copy((const char **) environ);
+ 	setenvf(&child_env, "SLURMCTLD_RECONF", "1");
+ 	if (pidfd != -1) {
+@@ -1112,20 +1106,23 @@ rwfail:
+ 	}
+ 
+ start_child:
+-	for (int fd = 3; fd < rlim.rlim_cur; fd++) {
+-		bool match = false;
+-		if (fd == to_parent[1])
+-			continue;
+-		if (fd == pidfd)
+-			continue;
+-		for (int i = 0; i < listen_nports; i++) {
+-			if (fd == listen_fds[i].fd) {
+-				match = true;
+-				break;
+-			}
+-		}
+-		if (!match)
+-			(void) close(fd);
++	{
++		/* need space for listen fds plus {to_parent[1], pidfd, -1} */
++		int *skip_close = xcalloc((listen_nports + 3),
++					  sizeof(*skip_close));
++		int skip_index = 0;
++
++		for (int i = 0; i < listen_nports; i++)
++			if (listen_fds[i].fd >= 0)
++				skip_close[skip_index++] = listen_fds[i].fd;
++		if (to_parent[1] >= 0)
++			skip_close[skip_index++] = to_parent[1];
++		if (pidfd >= 0)
++			skip_close[skip_index++] = pidfd;
++		skip_close[skip_index] = -1;
++
++		closeall_except(3, skip_close);
++		xfree(skip_close);
+ 	}
+ 
+ 	/*
