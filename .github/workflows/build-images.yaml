@@ -23,6 +23,8 @@ on:
     secrets:
       ORG_BUILDKIT_CLIENT_TOKEN:
         required: true
+      ORG_REPO_READ_ONLY:
+        required: true
 
 permissions:
   contents: read
@@ -122,6 +124,7 @@ jobs:
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
           registry-path: ${{ inputs.registry-path }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          git-clone-token: ${{ secrets.ORG_REPO_READ_ONLY }}
           buildx-args-common: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
@@ -189,6 +192,7 @@ jobs:
           doppler-token: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
           registry-path: ${{ inputs.registry-path }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          git-clone-token: ${{ secrets.ORG_REPO_READ_ONLY }}
           buildx-args-common: |
             --build-arg=PARENT_IMAGE=${{ matrix.build-settings.parent_image }}
             --build-arg=SLURM_PMIX_VERSION=${{ matrix.build-settings.slurm_pmix_version }}
