@@ -3,7 +3,7 @@
 # SPDX-PackageName: slurm-containers
 ARG PARENT_IMAGE=ubuntu:22.04
 # Slurm version can be release version (ex. 22.05.7) or full git commit sha
-ARG SLURM_VERSION=25.05.3
+ARG SLURM_VERSION=25.05.9
 ARG S6_OVERLAY_VERSION=3.2.1.0
 ARG PYXIS_VERSION=0.21.0
 ARG ENROOT_VERSION=4.0.1
@@ -15,9 +15,10 @@ ARG LIBJSON_VERSION=5
 # pmix2 for Ubuntu 22.04
 ARG SLURM_PMIX_VERSION=pmix2
 ARG LIBNSSCACHE_VERSION=0.21
-# NSSCACHE_VERSION points to a commit fixing an occasionally incorrect assumption about a
-# `modifyTimestamp` field being present in responses.
-ARG NSSCACHE_VERSION=v0.8.0
+# NSSCACHE_VERSION pins the CoreWeave nsscache fork. v0.9.0 hardens SCIM handling: it skips
+# deactivated users, fails the sync on a response it cannot fully parse, and rejects uid/gid 0
+# and unsafe characters in fields written to the NSS caches.
+ARG NSSCACHE_VERSION=v0.9.0
 # This is currently only used to find the `dist-packages` location for the `nsscache` installation
 # TODO (SUNK-948): Do this dynamically
 ARG PYTHON_VERSION=3.10
