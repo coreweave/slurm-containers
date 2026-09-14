@@ -2,15 +2,27 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # SPDX-PackageName: slurm-containers
 diff --git a/src/slurmctld/proc_req.c b/src/slurmctld/proc_req.c
-index f6b48c0..0f536e4 100644
+index df99fe4..db2b7a2 100644
 --- a/src/slurmctld/proc_req.c
 +++ b/src/slurmctld/proc_req.c
-@@ -6016,7 +6016,7 @@ static void _slurm_rpc_persist_init(slurm_msg_t *msg)
-
+@@ -6023,7 +6023,8 @@
+ 	 */
  	if (persist_init->persist_type == PERSIST_TYPE_FED)
  		rc = fed_mgr_add_sibling_conn(persist_conn, &comment);
--	else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE) {
-+	else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE || persist_init->persist_type == PERSIST_TYPE_NONE) {
+-	else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE)
++	else if ((persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE) ||
++		 (persist_init->persist_type == PERSIST_TYPE_NONE))
  		persist_conn->flags |= PERSIST_FLAG_ALREADY_INITED;
-
- 		slurm_persist_conn_recv_thread_init(
+ 	else
+ 		rc = SLURM_ERROR;
+@@ -6046,7 +6047,9 @@
+ 	if (!rc && persist_conn) {
+ 		if (persist_init->persist_type == PERSIST_TYPE_FED)
+ 			fed_mgr_start_sibling_conn(persist_conn);
+-		else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE)
++		else if ((persist_init->persist_type ==
++			  PERSIST_TYPE_ACCT_UPDATE) ||
++			 (persist_init->persist_type == PERSIST_TYPE_NONE))
+ 			slurm_persist_conn_recv_thread_init(
+ 				persist_conn,
+ 				conn_g_get_fd(persist_conn->conn), -1,
