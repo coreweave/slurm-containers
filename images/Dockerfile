@@ -3,7 +3,7 @@
 # SPDX-PackageName: slurm-containers
 ARG PARENT_IMAGE=ubuntu:22.04
 # Slurm version can be release version (ex. 22.05.7) or full git commit sha
-ARG SLURM_VERSION=25.05.3
+ARG SLURM_VERSION=25.05.9
 ARG S6_OVERLAY_VERSION=3.2.1.0
 ARG PYXIS_VERSION=0.21.0
 ARG ENROOT_VERSION=4.0.1
@@ -15,9 +15,10 @@ ARG LIBJSON_VERSION=5
 # pmix2 for Ubuntu 22.04
 ARG SLURM_PMIX_VERSION=pmix2
 ARG LIBNSSCACHE_VERSION=0.21
-# NSSCACHE_VERSION points to a commit fixing an occasionally incorrect assumption about a
-# `modifyTimestamp` field being present in responses.
-ARG NSSCACHE_VERSION=v0.8.0
+# NSSCACHE_VERSION pins the CoreWeave nsscache fork. v0.9.0 hardens SCIM handling: it skips
+# deactivated users, fails the sync on a response it cannot fully parse, and rejects uid/gid 0
+# and unsafe characters in fields written to the NSS caches.
+ARG NSSCACHE_VERSION=v0.9.0
 # This is currently only used to find the `dist-packages` location for the `nsscache` installation
 # TODO (SUNK-948): Do this dynamically
 ARG PYTHON_VERSION=3.10
@@ -236,10 +237,16 @@ FROM builder AS nsscache
 ARG NSSCACHE_VERSION
 WORKDIR /build
 # Patch default shell from empty string to configurable value in `ldap_default_shell` in nsscahe.conf
-RUN cd /build && \
+# coreweave/nsscache is a private repo. The build mounts a netrc secret to authenticate the clone;
+# the credentials never land in an image layer or the build cache.
+RUN --mount=type=secret,id=netrc,target=/root/.netrc \
+  export HOME=/root && \
+  cd /build && \
   git clone https://github.com/coreweave/nsscache.git && \
   cd nsscache/ && \
   git checkout ${NSSCACHE_VERSION} && \
+  mkdir -p /bundle && \
+  git bundle create /bundle/coreweave-nsscache-${NSSCACHE_VERSION}.gitbundle coreweave --tags && \
   find /usr/lib/python3* -name EXTERNALLY-MANAGED -delete && \
   pip install -r requirements.txt && \
   pip install .
@@ -434,6 +441,10 @@ RUN rm /lib/libnss_cache.so.2 && \
 ARG PYTHON_VERSION
 COPY --from=nsscache /usr/local/bin/nsscache /usr/local/bin/nsscache
 COPY --from=nsscache /usr/local/lib/python${PYTHON_VERSION}/dist-packages /usr/local/lib/python${PYTHON_VERSION}/dist-packages
+
+# Ship the nsscache source as a git bundle so the private fork's source is
+# redistributable alongside the installed package.
+COPY --from=nsscache /bundle/ /usr/local/src/nsscache/
 
 # Add symlinks for /etc/*.cache -> ${NSSCACHE_FILES_DIR}/*.cache
 ARG NSSCACHE_FILES_DIR
