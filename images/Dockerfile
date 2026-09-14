@@ -3,7 +3,7 @@
 # SPDX-PackageName: slurm-containers
 ARG PARENT_IMAGE=ubuntu:22.04
 # Slurm version can be release version (ex. 22.05.7) or full git commit sha
-ARG SLURM_VERSION=25.11.6
+ARG SLURM_VERSION=25.11.8
 ARG S6_OVERLAY_VERSION=3.2.3.0
 ARG PYXIS_VERSION=0.24.0
 ARG ENROOT_VERSION=4.2.1
@@ -18,7 +18,7 @@ ARG SLURM_PMIX_VERSION=pmix2
 ARG LIBNSSCACHE_VERSION=0.21
 # NSSCACHE_VERSION points to a commit fixing an occasionally incorrect assumption about a
 # `modifyTimestamp` field being present in responses.
-ARG NSSCACHE_VERSION=v0.8.0
+ARG NSSCACHE_VERSION=v0.9.0
 # This is currently only used to find the `dist-packages` location for the `nsscache` installation
 # TODO (SUNK-948): Do this dynamically
 ARG PYTHON_VERSION=3.10
