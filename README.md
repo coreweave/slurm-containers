@@ -44,7 +44,7 @@ There are enroot patches at [images/patches/enroot/README.md](./images/patches/e
 The image is built using Docker multi-stage builds. Key build arguments include:
 
 - `PARENT_IMAGE`: Base image (default: ubuntu:22.04)
-- `SLURM_VERSION`: Slurm version to build (default: 25.11.8)
+- `SLURM_VERSION`: Slurm version to build (default: 26.05.4)
 - `S6_OVERLAY_VERSION`: S6 overlay version (default: 3.2.0.2)
 - `PYXIS_VERSION`: NVIDIA Pyxis version (default: 0.20.0)
 - `ENROOT_VERSION`: NVIDIA Enroot version (default: 3.5.0)
