@@ -26,7 +26,6 @@ licenses.
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
   - [0020-empty-topology](#0020-empty-topology)
   - [0021-revert-remove-cg-limits.patch](#0021-revert-remove-cg-limitspatch)
-  - [0022-move-persist-conn-shutdown.patch](#0022-move-persist-conn-shutdownpatch)
   - [0023-fail-bad-constraints.patch](#0023-fail-bad-constraintspatch)
   - [0024-fix-mem-spec-limit.patch](#0024-fix-mem-spec-limitpatch)
 
@@ -191,19 +190,6 @@ This patch reverts the following commit to allow SlurmdSpecOverride to work in c
 allowing the constraints detected by hwloc to persist.
 
 [Slurm Commit](https://github.com/SchedMD/slurm/commit/e4c8a1755e5a58523f85da02a7a4ca6ed057a4a2)
-
-### 0022-move-persist-conn-shutdown.patch
-
-This fixes a race condition when using persistent connections
-in `slurm_persist_conn_recv_server_fini` and `_service_connection`.
-When a shutdown is signaled via reconfigure, there is a race between the call to
-`pthread_detach` in `_service_connection` and `slurm_thread_join` in
-`slurm_persist_conn_recv_server_fini`. This patch adds a guard around `pthread_detach`
-to only run when we are not shutting down.
-
-Notes from `pthead_detch` man
->       Once a thread has been detached, it can't be joined with
->       pthread_join(3) or be made joinable again.
 
 ### 0023-fail-bad-constraints.patch
 

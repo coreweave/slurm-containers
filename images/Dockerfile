@@ -3,7 +3,7 @@
 # SPDX-PackageName: slurm-containers
 ARG PARENT_IMAGE=ubuntu:22.04
 # Slurm version can be release version (ex. 22.05.7) or full git commit sha
-ARG SLURM_VERSION=25.11.8
+ARG SLURM_VERSION=26.05.4
 ARG S6_OVERLAY_VERSION=3.2.3.0
 ARG PYXIS_VERSION=0.24.0
 ARG ENROOT_VERSION=4.2.1
@@ -166,8 +166,10 @@ RUN find /build/patches/slurm -type f -name *.patch -print0 | \
 # Build Slurm
 ARG SLURM_PMIX_VERSION
 WORKDIR /build/slurm-$SLURM_VERSION
+# Use DWARF 4 for pahole BTF support - pahole cannot encode DWARF 5 atomic types as BTF
+# since atomics are not a supported type
 RUN arch=$(uname -m) && \
-  ./configure --prefix=/usr --libdir=/usr/lib/${arch}-linux-gnu --sysconfdir=/etc/slurm \
+  SLURM_CFLAGS="-gdwarf-4" ./configure --prefix=/usr --libdir=/usr/lib/${arch}-linux-gnu --sysconfdir=/etc/slurm \
   --enable-pam --with-pam_dir=/usr/lib/${arch}-linux-gnu/security \
   --with-hdf5 --disable-glibtest --disable-gtktest \
   --with-pmix=/usr/lib/${arch}-linux-gnu/$SLURM_PMIX_VERSION \
