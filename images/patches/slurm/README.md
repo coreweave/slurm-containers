@@ -21,11 +21,9 @@ licenses.
   - [0006-allow-all-topology](#0006-allow-all-topology)
   - [0007-cgroup-v2](#0007-cgroup-v2)
   - [0008-job-skip-ids](#0008-job-skip-ids)
-  - [0015-remove-gres-core-range-matches-sock.patch](#0015-remove-gres-core-range-matches-sockpatch)
   - [0016-scontrol-dashboards](#0016-scontrol-dashboards)
   - [0019-empty-pids-retry](#0019-empty-pids-retry)
   - [0020-empty-topology](#0020-empty-topology)
-  - [0021-revert-remove-cg-limits.patch](#0021-revert-remove-cg-limitspatch)
   - [0023-fail-bad-constraints.patch](#0023-fail-bad-constraintspatch)
   - [0024-fix-mem-spec-limit.patch](#0024-fix-mem-spec-limitpatch)
 
@@ -134,14 +132,6 @@ and allows Slurm to continue to process jobs.
 If upstream was to correct the root cause of why job ids become corrupted or handle corrupted job
 ids gracefully then this patch would no longer be required.
 
-### 0015-remove-gres-core-range-matches-sock.patch
-
-This is reverting a change that was first introduced in the following commit:
-[Slurm Commit](https://github.com/SchedMD/slurm/commit/b886b6e82fc5194e057488027a29d201c10846bb)
-
-When we have the previous 0011-25.05-container-fixes patch applied, the newly constrained node will never
-be allowed to join the cluster because the gres core range will never match the socket count.
-
 ### 0016-scontrol-dashboards
 
 This patch adds node and job Grafana dashboard URLs to the outputs of `scontrol show node` and
@@ -183,13 +173,6 @@ assumptions.
 
 This patch can be removed if upstream handles an empty topology.conf gracefully without
 terminating the daemon.
-
-### 0021-revert-remove-cg-limits.patch
-
-This patch reverts the following commit to allow SlurmdSpecOverride to work in cgroupv1 setups by
-allowing the constraints detected by hwloc to persist.
-
-[Slurm Commit](https://github.com/SchedMD/slurm/commit/e4c8a1755e5a58523f85da02a7a4ca6ed057a4a2)
 
 ### 0023-fail-bad-constraints.patch
 
