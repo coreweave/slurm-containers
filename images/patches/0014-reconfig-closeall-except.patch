@@ -14,9 +14,9 @@ index 42185e4d99..2a44e5cee6 100644
  	char **child_env;
  	pid_t pid;
  	int to_parent[2] = {-1, -1};
- 
+
  	conmgr_quiesce(true);
- 
+
 -	if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
 -		error("getrlimit(RLIMIT_NOFILE): %m");
 -		rlim.rlim_cur = 4096;
@@ -27,7 +27,7 @@ index 42185e4d99..2a44e5cee6 100644
  	if (pidfd != -1) {
 @@ -1112,20 +1106,23 @@ rwfail:
  	}
- 
+
  start_child:
 -	for (int fd = 3; fd < rlim.rlim_cur; fd++) {
 -		bool match = false;
@@ -61,5 +61,5 @@ index 42185e4d99..2a44e5cee6 100644
 +		closeall_except(3, skip_close);
 +		xfree(skip_close);
  	}
- 
+
  	/*

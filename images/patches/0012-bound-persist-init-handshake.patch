@@ -8,7 +8,7 @@ index 33f297b610..2fbc20d8d5 100644
 @@ -636,7 +636,27 @@ extern int slurm_persist_conn_open(persist_conn_t *persist_conn)
  			goto end_it;
  		}
- 
+
 -		buffer = _slurm_persist_recv_msg(persist_conn, false);
 +		{
 +			/*
@@ -31,6 +31,6 @@ index 33f297b610..2fbc20d8d5 100644
 +			buffer = _slurm_persist_recv_msg(persist_conn, false);
 +			persist_conn->timeout = save_timeout;
 +		}
- 
+
  		if (!buffer) {
  			if (_comm_fail_log(persist_conn)) {

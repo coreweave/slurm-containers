@@ -82,3 +82,20 @@ node-resize path where it is actually consumed and guards it with a NULL check, 
 instead of dereferencing.
 
 This is the upstream form of the fix. It applies cleanly to 24.05.
+
+## 0015-data-parser-plugin-string-race
+
+Backport of SchedMD commit `ff4cdb8dc9` (Ticket 21789), which lands on `master`/25.05/25.11/26.05 but
+was never backported to the 24.05 or 24.11 lines.
+
+`data_parser_get_plugin()` lazily initialized `parser->plugin_string` with `xstrfmtcat` guarded only
+by a NULL check. When `slurmrestd` calls it from multiple threads for the same parser, two threads can
+both see a NULL `plugin_string` and both run `xstrfmtcat`, stacking multiple copies of the plugin
+string onto the same buffer. The corrupted string then fails plugin lookup, and valid endpoints
+return "Requested data_parser plugin does not support OpenAPI plugin".
+
+The patch moves the `xstrfmtcat` into `_new_parser()` so `plugin_string` is populated once at parser
+creation, and reduces `data_parser_get_plugin()` to a plain read of the already-initialized field,
+removing the race.
+
+This is the upstream form of the fix. It applies cleanly to 24.05.
