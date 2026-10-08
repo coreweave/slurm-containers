@@ -18,7 +18,6 @@ licenses.
   - [0003-revert-no-dynamic-sort](#0003-revert-no-dynamic-sort)
   - [0004-rest-get-node-default-flags](#0004-rest-get-node-default-flags)
   - [0005-allow-persistent-none](#0005-allow-persistent-none)
-  - [0006-allow-all-topology](#0006-allow-all-topology)
   - [0007-cgroup-v2](#0007-cgroup-v2)
   - [0008-job-skip-ids](#0008-job-skip-ids)
   - [0015-remove-gres-core-range-matches-sock.patch](#0015-remove-gres-core-range-matches-sockpatch)
@@ -98,22 +97,6 @@ This patch treats the initialization of `PERSIST_TYPE_NONE` persistent connectio
 client library instead of making new connections for each message and should be more efficient.
 We have not submitted this to the upstream project because their current stance is not to address
 the various other bugs we have reported and because this is considered a feature request, not a bug.
-
-### 0006-allow-all-topology
-
-This patch allows for both `topology/tree` and `topology/block` configuration to be present in the
-topology configuration file `topology.conf`. This is done by updating the flags used in parsing the
-file to ignore lines that do not match the expected contents for each of the topology plugins.
-Without this patch when the topology plugins encounter a line that does not match their expected
-format, `slurmctld` will exit with error
-`something wrong with opening/reading /etc/slurm/topology.conf: Invalid argument`.
-
-This is to allow generating information for both topology plugins in the `topology.conf` file by
-SUNK without being conditional on which plugin is currently active. Validation that the expected
-topology is loaded can still be done by `scontrol show topo`. Since the topology is generated it is
-unlikely to have the type of formatting errors on lines that the prior behavior would catch.
-Additionally, having a functional `slurmctld` even with "degradation" with respect to topology is
-preferred over it being non-functional and taking the cluster down.
 
 ### 0007-cgroup-v2
 
