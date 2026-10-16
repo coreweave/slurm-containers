@@ -25,7 +25,6 @@ licenses.
   - [0020-empty-topology](#0020-empty-topology)
   - [0023-fail-bad-constraints.patch](#0023-fail-bad-constraintspatch)
   - [0024-fix-mem-spec-limit.patch](#0024-fix-mem-spec-limitpatch)
-  - [0025-keep-multi-qos-on-reload.patch](#0025-keep-multi-qos-on-reloadpatch)
 
 ### 0001-max-server-threads
 
@@ -178,21 +177,3 @@ greater than the RealMemory value, which is the Pod memory request/limit.
 
 Fix: Preserve the existing calculation when physical memory is greater
 than the detected limit, and otherwise clamp MemSpecLimit to 0.
-
-### 0025-keep-multi-qos-on-reload.patch
-
-Backport of SchedMD commit [49749a8b1b] (Ticket 23033), which lands on `master` and 26.05 (first
-tagged in `slurm-26-05-4-1`) but was not backported to 25.11.
-
-When `slurmctld` reloads a job from the state file after a restart or reconfigure, `_get_qos_info()`
-rebuilds the job's QoS list from the multi-QoS request string and always selected the first entry of
-the priority-sorted list. A running job submitted with multiple QoS could therefore be silently moved
-to a different QoS than the one it was started under. The fix keeps the job's saved `qos_id` when it
-is still part of the request list, and otherwise logs a message and falls back to the
-highest-priority QoS. New submissions and job updates pass `qos_id == 0`, so their behavior is
-unchanged.
-
-This is the upstream form of the fix and applies cleanly to 25.11.8. Remove this patch when
-upgrading to Slurm 26.05.
-
-[49749a8b1b]: https://github.com/SchedMD/slurm/commit/49749a8b1b93bc85bdab28d3a4c7f1ecacb826eb
