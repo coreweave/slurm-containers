@@ -479,6 +479,10 @@ RUN rm /lib/libnss_cache.so.2 && \
 ARG PYTHON_VERSION
 COPY --from=nsscache /usr/local/bin/nsscache /usr/local/bin/nsscache
 COPY --from=nsscache /usr/local/lib/python${PYTHON_VERSION}/dist-packages /usr/local/lib/python${PYTHON_VERSION}/dist-packages
+# certifi releases before 2026.10.23 trust compromised eMudhra roots that the system store distrusts,
+# and a cached nsscache layer can keep one, so use the trimmed system bundle instead.
+RUN cp /etc/ssl/certs/ca-certificates.crt \
+  /usr/local/lib/python${PYTHON_VERSION}/dist-packages/certifi/cacert.pem
 
 # Ship the nsscache source as a git bundle so the private fork's source is
 # redistributable alongside the installed package.
@@ -629,12 +633,21 @@ RUN rm /etc/update-motd.d/*
 # A user can initialize conda for their shell with: /opt/conda/bin/conda init bash --user
 # (or `conda init zsh --user` for zsh)
 ## Note, this script must end in `.sh` because their installer is janky
+# The CA bundle, certifi and pip's vendored certifi that the Miniconda installer ships trust
+# compromised eMudhra roots, so replace them with the trimmed system bundle. The package cache holds
+# more copies and is dropped first, so the copies can't write through its hardlinks.
 ARG CONDA_VERSION
 RUN arch=$(uname -m) && \
   curl --fail --show-error --silent --location --output /tmp/conda_installer.sh \
   https://repo.anaconda.com/miniconda/Miniconda3-${CONDA_VERSION}-Linux-${arch}.sh  && \
   bash /tmp/conda_installer.sh -b -u -p /opt/conda && \
-  rm /tmp/conda_installer.sh
+  rm /tmp/conda_installer.sh && \
+  /opt/conda/bin/conda clean -afy && \
+  for f in /opt/conda/ssl/cacert.pem \
+    /opt/conda/lib/python3*/site-packages/certifi/cacert.pem \
+    /opt/conda/lib/python3*/site-packages/pip/_vendor/certifi/cacert.pem; do \
+    cp /etc/ssl/certs/ca-certificates.crt "$f"; \
+  done
 
 RUN /opt/conda/bin/conda init bash zsh
 
