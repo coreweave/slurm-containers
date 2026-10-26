@@ -26,7 +26,7 @@ ARG CONTAINER_TOOLKIT_VERSION=1.19.1-1
 # Bumping this invalidates the cached apt layers in the builder and controller stages and every
 # layer after them (RUNs implicitly take in-scope ARGs), so CI picks up the latest packages such as
 # ca-certificates. It also rebuilds all builder-derived stages, including the Slurm compile.
-ARG APT_CACHE_BUST=2026-10-22
+ARG APT_CACHE_BUST=2026-10-26
 
 ## Controller Extras args
 ARG CONDA_VERSION=py313_26.9.4-0
@@ -386,6 +386,8 @@ RUN apt-get -qq update && \
   sssd-ad \
   sssd-ldap \
   sssd-tools \
+  # Already present in the slurmd parent images (via curl), and apt only upgrades it when named
+  libbrotli1 \
   # Misc
   bash-completion \
   binutils \
