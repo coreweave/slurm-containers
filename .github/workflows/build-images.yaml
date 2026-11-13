@@ -78,7 +78,7 @@ env:
 jobs:
   parse-build-settings:
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    container: docker.artifacts.coreweave.com/cw-github-actions-images-oci/github-base-runner:v1.22.0
     outputs:
       controller_matrix: ${{ steps.parse-build-settings.outputs.controller_matrix }}
       slurmd_cw_matrix: ${{ steps.parse-build-settings.outputs.slurmd_cw_matrix }}
@@ -97,7 +97,7 @@ jobs:
   build-controller-images:
     needs: parse-build-settings
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    container: docker.artifacts.coreweave.com/cw-github-actions-images-oci/github-base-runner:v1.22.0
 
     strategy:
       fail-fast: false
@@ -165,7 +165,7 @@ jobs:
   build-slurmd-cw-images:
     needs: parse-build-settings
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    container: docker.artifacts.coreweave.com/cw-github-actions-images-oci/github-base-runner:v1.22.0
 
     strategy:
       fail-fast: false
@@ -236,7 +236,7 @@ jobs:
       - build-controller-images
       - build-slurmd-cw-images
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    container: docker.artifacts.coreweave.com/cw-github-actions-images-oci/github-base-runner:v1.22.0
 
     outputs:
       built_images_json: ${{ steps.output-image-names.outputs.built_images_json }}

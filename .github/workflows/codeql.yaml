@@ -16,7 +16,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.9.0
+    container: docker.artifacts.coreweave.com/cw-github-actions-images-oci/github-base-runner:v1.22.0
     timeout-minutes: 360
     permissions:
       # required for all workflows
