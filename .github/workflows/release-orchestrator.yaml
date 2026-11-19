@@ -18,7 +18,9 @@ jobs:
     with:
       registry-path: ""
       version-tag: ${{ github.ref_name }}
-    secrets: inherit
+    secrets:
+      ORG_BUILDKIT_CLIENT_TOKEN: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
+      ORG_REPO_READ_ONLY: ${{ secrets.ORG_REPO_READ_ONLY }}
     permissions:
       contents: read # required for accessing the repo contents
       id-token: write # required for requesting JWT and OIDC tokens
