@@ -13,8 +13,7 @@ permissions:
 
 jobs:
   commitlint:
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-semantic-release:v1.8.0
+    runs-on: cw-static-pub-x64-4c
     if: github.actor != 'dependabot[bot]'
     steps:
       - name: Checkout repository
