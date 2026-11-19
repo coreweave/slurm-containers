@@ -129,7 +129,7 @@ runs:
 
     - name: Build image
       id: build-image
-      uses: coreweave/actions-public/build/buildx-build@v1.0.0
+      uses: coreweave/actions-public/build/buildx-build@7a2bb3ceca94553e473bd7839da145781dcdc213 # v1.0.0
       with:
         context: ${{ inputs.context }}
         tags: ${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}
