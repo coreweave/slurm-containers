@@ -242,3 +242,16 @@ This is the upstream form of the fix and applies cleanly to 25.05.9. Remove this
 upgrading to Slurm 26.05.
 
 [49749a8b1b]: https://github.com/SchedMD/slurm/commit/49749a8b1b93bc85bdab28d3a4c7f1ecacb826eb
+
+### 0026-rebuild-priority-array-on-qos-change.patch
+
+Backport of SchedMD commit [d07dbd9cb9], included upstream starting with Slurm 26.05.6.
+
+When a job's requested QoS list grows, its existing `priority_array` can be too small for priority
+recalculation, causing an out-of-bounds write. The fix frees the array when the QoS list changes so
+the priority plugin rebuilds it at the new size.
+
+This is the upstream form of the fix and applies cleanly to 25.05.9. Remove this patch when
+upgrading to Slurm 26.05.6 or later.
+
+[d07dbd9cb9]: https://github.com/SchedMD/slurm/commit/d07dbd9cb986f335c423008e27dc2fdf819e9d78
