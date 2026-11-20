@@ -127,9 +127,25 @@ runs:
           echo "hash=${{ steps.compute-image-name-hash.outputs.hash }}"
         echo "::endgroup::"
 
+    # The buildx-build action invokes `buildx` as a standalone binary. The GitHub-hosted
+    # static runners only ship buildx as a Docker CLI plugin, so provide a `buildx` wrapper.
+    - name: Expose buildx as a standalone command
+      shell: bash
+      run: |
+        if command -v buildx >/dev/null 2>&1; then
+          echo "buildx already on PATH: $(command -v buildx)"
+          exit 0
+        fi
+        docker buildx version
+        mkdir -p "${RUNNER_TEMP}/bin"
+        printf '#!/usr/bin/env bash\nexec docker buildx "$@"\n' > "${RUNNER_TEMP}/bin/buildx"
+        chmod +x "${RUNNER_TEMP}/bin/buildx"
+        echo "${RUNNER_TEMP}/bin" >> "$GITHUB_PATH"
+        echo "Installed buildx wrapper at ${RUNNER_TEMP}/bin/buildx"
+
     - name: Build image
       id: build-image
-      uses: coreweave/actions-public/build/buildx-build@7a2bb3ceca94553e473bd7839da145781dcdc213 # v1.0.0
+      uses: coreweave/actions-public/build/buildx-build@f2eff74b46fdb4960b293e9ac738c1d5253b94f4 # v1.3.1
       with:
         context: ${{ inputs.context }}
         tags: ${{ steps.assemble-image-name.outputs.image_name }}:${{ steps.determine-tag.outputs.tag }}

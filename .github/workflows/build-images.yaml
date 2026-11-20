@@ -95,8 +95,7 @@ jobs:
 
   build-controller-images:
     needs: parse-build-settings
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    runs-on: cw-static-pub-x64-4c
 
     strategy:
       fail-fast: false
@@ -163,8 +162,7 @@ jobs:
 
   build-slurmd-cw-images:
     needs: parse-build-settings
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    runs-on: cw-static-pub-x64-4c
 
     strategy:
       fail-fast: false
