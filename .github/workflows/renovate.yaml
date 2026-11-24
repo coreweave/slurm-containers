@@ -6,7 +6,7 @@
 # Runs Renovate inline (this repo is public and cannot call the org's internal
 # reusable run-renovate workflow); scoped to this repository only. Setup runs on
 # the host runner and renovatebot/github-action runs Renovate in its container,
-# which needs a Docker daemon (hence the dind runner).
+# which needs a Docker daemon (available on the GitHub-hosted runner).
 name: Renovate
 
 on:
@@ -45,7 +45,7 @@ permissions:
 jobs:
   renovate:
     name: Renovate
-    runs-on: cw-dind-small
+    runs-on: cw-static-pub-x64-4c
     steps:
       - name: Generate token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0

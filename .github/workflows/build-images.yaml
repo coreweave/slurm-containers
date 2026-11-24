@@ -77,8 +77,7 @@ env:
 
 jobs:
   parse-build-settings:
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    runs-on: cw-static-pub-x64-4c
     outputs:
       controller_matrix: ${{ steps.parse-build-settings.outputs.controller_matrix }}
       slurmd_cw_matrix: ${{ steps.parse-build-settings.outputs.slurmd_cw_matrix }}
@@ -96,8 +95,7 @@ jobs:
 
   build-controller-images:
     needs: parse-build-settings
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    runs-on: cw-static-pub-x64-4c
 
     strategy:
       fail-fast: false
@@ -157,15 +155,14 @@ jobs:
           ]' >> ${{ env.controller_image_names_artifact_file }}
       - name: Upload image name artifact
         id: upload-image-name-artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ env.controller_image_names_artifact_file }}_${{ matrix.build-settings.os }}
           path: "${{ env.controller_image_names_artifact_file }}"
 
   build-slurmd-cw-images:
     needs: parse-build-settings
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    runs-on: cw-static-pub-x64-4c
 
     strategy:
       fail-fast: false
@@ -226,7 +223,7 @@ jobs:
           ]' >> ${{ env.slurmd_image_names_artifact_file }}
       - name: Upload image name artifact
         id: upload-image-name-artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ env.slurmd_image_names_artifact_file }}_${{ matrix.build-settings.os }}_${{ matrix.build-settings.cuda_name }}
           path: "${{ env.slurmd_image_names_artifact_file }}"
@@ -235,8 +232,7 @@ jobs:
     needs:
       - build-controller-images
       - build-slurmd-cw-images
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    runs-on: cw-static-pub-x64-4c
 
     outputs:
       built_images_json: ${{ steps.output-image-names.outputs.built_images_json }}
@@ -247,12 +243,12 @@ jobs:
 
     steps:
       - name: Download controller based image names
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: image_name_artifacts
           pattern: "${{ env.controller_image_names_artifact_file }}_*"
       - name: Download slurmd-cw image names
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: image_name_artifacts
           pattern: "${{ env.slurmd_image_names_artifact_file }}_*"
@@ -275,7 +271,7 @@ jobs:
           echo "$_images_to_copy"
       - name: Upload built image name artifact
         id: upload-built-image-names-artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: built_image_names
           path: "${{ env.combined_image_names_artifact_file }}"
