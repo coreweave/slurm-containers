@@ -14,8 +14,6 @@ on:
 permissions:
   contents: read
   packages: read # Required for pulling the cw actions images
-  actions: read
-  security-events: write
 
 jobs:
   commitlint:
@@ -26,7 +24,9 @@ jobs:
 
   build-images:
     uses: ./.github/workflows/build-images.yaml
-    secrets: inherit
+    secrets:
+      ORG_BUILDKIT_CLIENT_TOKEN: ${{ secrets.ORG_BUILDKIT_CLIENT_TOKEN }}
+      ORG_REPO_READ_ONLY: ${{ secrets.ORG_REPO_READ_ONLY }}
     permissions:
       contents: read
       packages: write # Required for pulling the cw actions images
@@ -38,8 +38,7 @@ jobs:
       - commitlint
       - pre-commit
       - build-images
-    runs-on: cw
-    container: ghcr.io/coreweave/github-actions-images/github-base-runner:v1.7.0
+    runs-on: cw-static-pub-x64-4c
     steps:
       - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
         with:
