@@ -31,6 +31,7 @@ licenses.
   - [0023-fail-bad-constraints.patch](#0023-fail-bad-constraintspatch)
   - [0024-fix-mem-spec-limit.patch](#0024-fix-mem-spec-limitpatch)
   - [0025-keep-multi-qos-on-reload.patch](#0025-keep-multi-qos-on-reloadpatch)
+  - [0027-backport-25087-acct-storage-shutdown-race.patch](#0027-backport-25087-acct-storage-shutdown-racepatch)
 
 ### 0001-max-server-threads
 
@@ -242,3 +243,18 @@ This is the upstream form of the fix and applies cleanly to 25.05.9. Remove this
 upgrading to Slurm 26.05.
 
 [49749a8b1b]: https://github.com/SchedMD/slurm/commit/49749a8b1b93bc85bdab28d3a4c7f1ecacb826eb
+
+### 0027-backport-25087-acct-storage-shutdown-race.patch
+
+Backport of the full SchedMD fix for Ticket 25087 ([compare]), released in 25.11.7.
+
+Since 25.05.8, [d6412acdbf2] (Ticket 25869) closes the accounting storage connection in
+`_slurmctld_background()` before RPC threads are quiesced. On 25.05 this also unloads the
+accounting_storage plugin, so a reconfigure (`SIGHUP`) can crash `slurmctld` with `SIGSEGV` while
+RPC threads are still using it. The 25087 series reorders the shutdown so RPCs are drained before
+the connection is closed, wakes in-flight writes to slurmdbd, and fixes the related persistent
+connection and federation use-after-free races.
+
+Remove this patch when upgrading to Slurm 25.11.7 or later.
+
+[compare]: https://github.com/SchedMD/slurm/compare/5e080f0b3c6418c996a841bab0e12d4ba2d56195...3b7999f77e5fc464ec6d0ad479d2229597527a40

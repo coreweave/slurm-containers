@@ -1,0 +1,472 @@
+# SPDX-FileCopyrightText: 2002-2026 Lawrence Livermore National Laboratory & other contributors to SLURM <https://github.com/SchedMD/slurm/commits/master/DISCLAIMER>
+# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-PackageName: slurm-containers
+diff --git a/src/common/persist_conn.c b/src/common/persist_conn.c
+index ecc32f4..f2776aa 100644
+--- a/src/common/persist_conn.c
++++ b/src/common/persist_conn.c
+@@ -600,6 +600,13 @@ static int _open_persist_conn(persist_conn_t *persist_conn)
+ 
+ 	fd = conn_g_get_fd(persist_conn->tls_conn);
+ 
++	/*
++	 * Publish the fd in a stable scalar field readable lock-free by
++	 * external wake paths. last_fd is cleared back to -1 in
++	 * _conn_destroy() before the conn is torn down.
++	 */
++	persist_conn->last_fd = fd;
++
+ 	fd_set_nonblocking(fd);
+ 	net_set_keep_alive(fd);
+ 
+diff --git a/src/common/persist_conn.h b/src/common/persist_conn.h
+index 04778a0..e906e4f 100644
+--- a/src/common/persist_conn.h
++++ b/src/common/persist_conn.h
+@@ -85,6 +85,10 @@ typedef struct {
+ 	pthread_t thread_id;
+ 	int timeout;
+ 	void *tls_conn;
++	int last_fd; /* most recent fd backing conn, valid while conn != NULL;
++		      * reset to -1 before conn destroy. Lock-free readable
++		      * by external wake/shutdown paths that cannot safely
++		      * deref conn. 0 means never opened. */
+ 	slurm_trigger_callbacks_t trigger_callbacks;
+ 	uint16_t version;
+ } persist_conn_t;
+diff --git a/src/plugins/accounting_storage/slurmdbd/accounting_storage_slurmdbd.c b/src/plugins/accounting_storage/slurmdbd/accounting_storage_slurmdbd.c
+index 5a86bec..e71ab16 100644
+--- a/src/plugins/accounting_storage/slurmdbd/accounting_storage_slurmdbd.c
++++ b/src/plugins/accounting_storage/slurmdbd/accounting_storage_slurmdbd.c
+@@ -264,6 +264,15 @@ extern int fini ( void )
+ {
+ 	plugin_shutdown = time(NULL);
+ 
++	/*
++	 * Final flush of agent_list. The agent thread itself no longer
++	 * frees the list on exit (see slurmdbd_agent.c) so that late
++	 * writers between _close_acct_storage_conn() and conmgr_quiesce()
++	 * can still enqueue. By the time we get here, conmgr is quiesced
++	 * and no more enqueues can happen, so it is safe to save + free.
++	 */
++	slurmdbd_agent_fini();
++
+ 	ext_dbd_fini();
+ 	xfree(cluster_nodes);
+ 	xfree(cluster_tres);
+diff --git a/src/plugins/accounting_storage/slurmdbd/dbd_conn.c b/src/plugins/accounting_storage/slurmdbd/dbd_conn.c
+index 9e5bb5c..977e60a 100644
+--- a/src/plugins/accounting_storage/slurmdbd/dbd_conn.c
++++ b/src/plugins/accounting_storage/slurmdbd/dbd_conn.c
+@@ -187,6 +187,22 @@ extern int dbd_conn_check_and_reopen(persist_conn_t *pc)
+ 		return SLURM_SUCCESS;
+ 	}
+ 
++	/*
++	 * Bail out if slurm_conf hasn't published accounting_storage_host
++	 * yet. This races the slurmctld startup path where the agent
++	 * thread can call us while main is mid-slurm_conf_reinit() and
++	 * the host string is transiently NULL. _connect_dbd_conn()'s
++	 * _open_persist_conn() would xassert on the NULL rem_host. The
++	 * agent's outer loop retries after a backoff, so returning an
++	 * error here is fine -- we'll try again once the conf is
++	 * loaded.
++	 */
++	if (!slurm_conf.accounting_storage_host) {
++		debug("%s: accounting_storage_host not set; skipping reconnect",
++		      __func__);
++		return SLURM_ERROR;
++	}
++
+ 	/*
+ 	 * Reset the rem_host just in case we were connected to the backup
+ 	 * before.
+diff --git a/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.c b/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.c
+index 529925e..a3d2472 100644
+--- a/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.c
++++ b/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.c
+@@ -853,12 +853,17 @@ static void *_agent(void *x)
+ 	}
+ 
+ 	slurm_mutex_lock(&agent_lock);
+-	_save_dbd_state();
+ 
+ 	log_flag(AGENT, "slurmdbd agent ending with agent_count=%d",
+ 		 list_count(agent_list));
+ 
+-	FREE_NULL_LIST(agent_list);
++	/*
++	 * Leave agent_list alive (and unsaved) here so any in-flight RPC
++	 * handlers that race past _close_acct_storage_conn() can still
++	 * enqueue. The list is saved to dbd.messages and freed in
++	 * slurmdbd_agent_fini() once conmgr has been quiesced and no
++	 * more enqueues can happen.
++	 */
+ 	agent_running = false;
+ 	slurm_cond_signal(&shutdown_cond);
+ 	slurm_mutex_unlock(&agent_lock);
+@@ -935,6 +940,23 @@ extern void slurmdbd_agent_rem_conn(void)
+ 	slurm_mutex_unlock(&slurmdbd_lock);
+ }
+ 
++extern void slurmdbd_agent_fini(void)
++{
++	slurm_mutex_lock(&agent_lock);
++	if (agent_list) {
++		/*
++		 * Save anything still queued. This catches both messages
++		 * the agent thread didn't drain before exit and late
++		 * writers (in-flight RPC handlers, conmgr workers,
++		 * slurmscriptd callbacks, etc.) that enqueued after the
++		 * agent thread exited. They are picked up on the next
++		 * slurmctld start.
++		 */
++		_save_dbd_state();
++		FREE_NULL_LIST(agent_list);
++	}
++	slurm_mutex_unlock(&agent_lock);
++}
+ 
+ extern int slurmdbd_agent_send_recv(uint16_t rpc_version,
+ 				    persist_msg_t *req,
+@@ -983,6 +1005,7 @@ extern int slurmdbd_agent_send(uint16_t rpc_version, persist_msg_t *req)
+ 	buf_t *buffer;
+ 	uint32_t cnt, rc = SLURM_SUCCESS;
+ 	static time_t syslog_time = 0;
++	bool trigger_dbd_fail = false, trigger_acct_full = false;
+ 
+ 	xassert(running_in_slurmctld());
+ 	xassert(slurm_conf.max_dbd_msgs);
+@@ -991,20 +1014,46 @@ extern int slurmdbd_agent_send(uint16_t rpc_version, persist_msg_t *req)
+ 		 slurmdbd_msg_type_2_str(req->msg_type, 1),
+ 		 rpc_version, list_count(agent_list));
+ 
+-	buffer = slurm_persist_msg_pack(
+-		slurmdbd_conn, (persist_msg_t *)req);
++	slurm_mutex_lock(&slurmdbd_lock);
++	if (slurmdbd_conn) {
++		buffer = slurm_persist_msg_pack(slurmdbd_conn, req);
++	} else {
++		/*
++		 * This means we are shutting down and we don't have a
++		 * connection anymore to the DBD. So let's pack this message and
++		 * add it to dbd.messages below.
++		 */
++		xassert(slurmdbd_shutdown);
++		buffer = pack_slurmdbd_msg(req, rpc_version);
++	}
++	slurm_mutex_unlock(&slurmdbd_lock);
+ 	if (!buffer)	/* pack error */
+ 		return SLURM_ERROR;
+ 
+ 	slurm_mutex_lock(&agent_lock);
+-	if ((agent_tid == 0) || (agent_list == NULL)) {
+-		_create_agent();
++	if (!slurmdbd_shutdown) {
+ 		if ((agent_tid == 0) || (agent_list == NULL)) {
+-			slurm_mutex_unlock(&agent_lock);
+-			FREE_NULL_BUFFER(buffer);
+-			return SLURM_ERROR;
++			_create_agent();
++			if ((agent_tid == 0) || (agent_list == NULL)) {
++				slurm_mutex_unlock(&agent_lock);
++				FREE_NULL_BUFFER(buffer);
++				return SLURM_ERROR;
++			}
+ 		}
+ 	}
++	if (!agent_list) {
++		/*
++		 * slurmdbd_agent_fini() has already torn down the queue;
++		 * the message has nowhere to go. Log so operators can see
++		 * late-shutdown drops if they occur.
++		 */
++		debug("%s: dropping %s msg, agent queue already torn down",
++		      __func__,
++		      slurmdbd_msg_type_2_str(req->msg_type, 1));
++		slurm_mutex_unlock(&agent_lock);
++		FREE_NULL_BUFFER(buffer);
++		return SLURM_ERROR;
++	}
+ 	cnt = list_count(agent_list);
+ 	if ((cnt >= (slurm_conf.max_dbd_msgs / 2)) &&
+ 	    (difftime(time(NULL), syslog_time) > 120)) {
+@@ -1013,7 +1062,7 @@ extern int slurmdbd_agent_send(uint16_t rpc_version, persist_msg_t *req)
+ 		error("agent queue filling (%u), MaxDBDMsgs=%u, RESTART SLURMDBD NOW",
+ 		      cnt, slurm_conf.max_dbd_msgs);
+ 		syslog(LOG_CRIT, "*** RESTART SLURMDBD NOW ***");
+-		(slurmdbd_conn->trigger_callbacks.dbd_fail)();
++		trigger_dbd_fail = true;
+ 	}
+ 
+ 	/* Handle action */
+@@ -1026,13 +1075,30 @@ extern int slurmdbd_agent_send(uint16_t rpc_version, persist_msg_t *req)
+ 		      cnt,
+ 		      slurmdbd_msg_type_2_str(req->msg_type, 1),
+ 		      req->msg_type);
+-		(slurmdbd_conn->trigger_callbacks.acct_full)();
++		trigger_acct_full = true;
+ 		FREE_NULL_BUFFER(buffer);
+ 		rc = SLURM_ERROR;
+ 	}
+ 
+ 	slurm_cond_broadcast(&agent_cond);
+ 	slurm_mutex_unlock(&agent_lock);
++
++	/*
++	 * Trigger callbacks after dropping agent_lock to avoid the
++	 * agent_lock -> slurmdbd_lock inversion against _agent(), which
++	 * takes those locks in the opposite order.
++	 */
++	if (trigger_acct_full || trigger_dbd_fail) {
++		slurm_mutex_lock(&slurmdbd_lock);
++		if (slurmdbd_conn) {
++			if (trigger_dbd_fail)
++				(slurmdbd_conn->trigger_callbacks.dbd_fail)();
++			if (trigger_acct_full)
++				(slurmdbd_conn->trigger_callbacks.acct_full)();
++		}
++		slurm_mutex_unlock(&slurmdbd_lock);
++	}
++
+ 	return rc;
+ }
+ 
+diff --git a/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.h b/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.h
+index a330c74..cdf2667 100644
+--- a/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.h
++++ b/src/plugins/accounting_storage/slurmdbd/slurmdbd_agent.h
+@@ -49,6 +49,13 @@ extern persist_conn_t *slurmdbd_conn;
+ extern void slurmdbd_agent_set_conn(persist_conn_t *pc);
+ /* Shut down the agent */
+ extern void slurmdbd_agent_rem_conn(void);
++/*
++ * Final teardown of the agent queue. Save any messages still queued
++ * (including late writers that enqueued after the agent thread exited)
++ * to dbd.messages and free the queue. Must only be called after the
++ * plugin is otherwise idle (i.e. no concurrent slurmdbd_agent_send()).
++ */
++extern void slurmdbd_agent_fini(void);
+ 
+ /*
+  * Send an RPC to the SlurmDBD and wait for an arbitrary reply message.
+diff --git a/src/slurmctld/controller.c b/src/slurmctld/controller.c
+index 92c0984..ecd9cc9 100644
+--- a/src/slurmctld/controller.c
++++ b/src/slurmctld/controller.c
+@@ -549,11 +549,16 @@ static void _retry_init_db_conn(assoc_init_args_t *args)
+ 	}
+ }
+ 
++/* Close the slurmctld -> slurmdbd persistent connection. */
+ static void _close_acct_storage_conn(void)
+ {
+ 	if (acct_db_conn)
+ 		acct_storage_g_close_connection(&acct_db_conn);
++}
+ 
++/* Unload the accounting_storage plugin. */
++static void _fini_acct_storage(void)
++{
+ 	acct_storage_g_fini();
+ 	slurm_persist_conn_recv_server_fini();
+ }
+@@ -1046,6 +1051,7 @@ int main(int argc, char **argv)
+ 
+ 		/* Save any pending state save RPCs */
+ 		_close_acct_storage_conn();
++		_fini_acct_storage();
+ 		power_save_fini();
+ 
+ 		/* attempt reconfig here */
+@@ -2470,20 +2476,31 @@ static void *_slurmctld_background(void *no_data)
+ 		}
+ 
+ 		if (slurmctld_config.shutdown_time) {
+-			/* Always stop listening when shutdown requested */
+-			listeners_quiesce();
++			/* kill all scripts running by the slurmctld */
++			track_script_flush();
++			slurmscriptd_flush();
+ 
+ 			/*
+ 			 * Persistent connection to slurmdbd must be closed
+ 			 * before conmgr quiesce to avoid possible deadlocks
+ 			 * where slurmdbd is waiting on slurmctld but
+ 			 * slurmctld will wait until quiesce to finish before
+-			 * responding.
++			 * responding. The plugin itself is unloaded later, in
++			 * main().
++			 *
++			 * Listeners can't be quiesced yet in case are still
++			 * processing RPCs from the DBD.
+ 			 */
+ 			_close_acct_storage_conn();
+ 
+ 			_flush_rpcs();
+ 
++			/*
++			 * Now that the ctld -> dbd conn is gone it is safe to
++			 * stop listening new connections.
++			 */
++			listeners_quiesce();
++
+ 			/*
+ 			 * Wait for all already accepted connection work to
+ 			 * finish before continuing on with control loop that
+diff --git a/src/slurmctld/fed_mgr.c b/src/slurmctld/fed_mgr.c
+index d496ba0..daa23ee 100644
+--- a/src/slurmctld/fed_mgr.c
++++ b/src/slurmctld/fed_mgr.c
+@@ -3571,17 +3571,19 @@ extern int fed_mgr_add_sibling_conn(persist_conn_t *persist_conn,
+ 	 * timeout and resolved itself. */
+ 	cluster->fed.recv = persist_conn;
+ 
+-	slurm_persist_conn_recv_thread_init(persist_conn,
+-					    conn_g_get_fd(persist_conn
+-								  ->tls_conn),
+-					    -1, persist_conn);
+-	_q_send_job_sync(cluster->name);
+-
+ 	unlock_slurmctld(fed_read_lock);
+ 
+ 	return SLURM_SUCCESS;
+ }
+ 
++extern void fed_mgr_start_sibling_conn(persist_conn_t *persist_conn)
++{
++	slurm_persist_conn_recv_thread_init(persist_conn,
++					    conn_g_get_fd(persist_conn->tls_conn),
++					    -1, persist_conn);
++	_q_send_job_sync(persist_conn->cluster_name);
++}
++
+ /*
+  * Convert comma separated list of cluster names to bitmap of cluster ids.
+  */
+diff --git a/src/slurmctld/fed_mgr.h b/src/slurmctld/fed_mgr.h
+index 73d8edb..cf89ae9 100644
+--- a/src/slurmctld/fed_mgr.h
++++ b/src/slurmctld/fed_mgr.h
+@@ -45,6 +45,7 @@ extern slurmdb_cluster_rec_t    *fed_mgr_cluster_rec;
+ extern void      add_fed_job_info(job_record_t *job_ptr);
+ extern int fed_mgr_add_sibling_conn(persist_conn_t *persist_conn,
+ 				    char **out_buffer);
++extern void fed_mgr_start_sibling_conn(persist_conn_t *persist_conn);
+ extern char     *fed_mgr_cluster_ids_to_names(uint64_t cluster_ids);
+ extern int       fed_mgr_fini(void);
+ extern uint32_t  fed_mgr_get_cluster_id(uint32_t id);
+diff --git a/src/slurmctld/proc_req.c b/src/slurmctld/proc_req.c
+index 82c950f..de329a2 100644
+--- a/src/slurmctld/proc_req.c
++++ b/src/slurmctld/proc_req.c
+@@ -5974,14 +5974,18 @@ static void _slurm_rpc_persist_init(slurm_msg_t *msg)
+ 
+ 	memcpy(&p_tmp, persist_conn, sizeof(persist_conn_t));
+ 
++	/*
++	 * Validate and publish the connection, but do NOT yet start the recv
++	 * thread that takes ownership of persist_conn->conn. Once that thread
++	 * is running it can destroy the underlying conn_t (e.g. on shutdown
++	 * detected via persist_conn->shutdown) which would turn the
++	 * &p_tmp.conn used below into a use-after-free.
++	 */
+ 	if (persist_init->persist_type == PERSIST_TYPE_FED)
+ 		rc = fed_mgr_add_sibling_conn(persist_conn, &comment);
+-	else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE || persist_init->persist_type == PERSIST_TYPE_NONE) {
++	else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE || persist_init->persist_type == PERSIST_TYPE_NONE)
+ 		persist_conn->flags |= PERSIST_FLAG_ALREADY_INITED;
+-		slurm_persist_conn_recv_thread_init(
+-			persist_conn, conn_g_get_fd(persist_conn->tls_conn), -1,
+-			persist_conn);
+-	} else
++	else
+ 		rc = SLURM_ERROR;
+ end_it:
+ 
+@@ -5994,6 +5998,21 @@ end_it:
+ 		      conn_g_get_fd(p_tmp.tls_conn), msg->auth_uid);
+ 	}
+ 
++	/*
++	 * Hand off the connection to the recv thread only after the response
++	 * has been sent. Otherwise the recv thread can tear down the conn
++	 * before we finish replying, leaving us with a use-after-free.
++	 */
++	if (!rc && persist_conn) {
++		if (persist_init->persist_type == PERSIST_TYPE_FED)
++			fed_mgr_start_sibling_conn(persist_conn);
++		else if (persist_init->persist_type == PERSIST_TYPE_ACCT_UPDATE || persist_init->persist_type == PERSIST_TYPE_NONE)
++			slurm_persist_conn_recv_thread_init(
++				persist_conn,
++				conn_g_get_fd(persist_conn->tls_conn), -1,
++				persist_conn);
++	}
++
+ 	if (rc && persist_conn) {
+ 		/* Free AFTER message has been sent back to remote */
+ 		persist_conn->tls_conn = NULL;
+diff --git a/src/slurmdbd/rpc_mgr.c b/src/slurmdbd/rpc_mgr.c
+index 7d813c8..44065d9 100644
+--- a/src/slurmdbd/rpc_mgr.c
++++ b/src/slurmdbd/rpc_mgr.c
+@@ -44,6 +44,7 @@
+ #include <sys/socket.h>
+ #include <sys/time.h>
+ #include <sys/types.h>
++#include <unistd.h>
+ 
+ #include "src/common/fd.h"
+ #include "src/common/log.h"
+@@ -134,8 +135,50 @@ static void _connection_fini_callback(void *arg)
+ {
+ 	slurmdbd_conn_t *conn = (slurmdbd_conn_t *) arg;
+ 	bool stay_locked = false;
++	int tries = 0;
++
++	/*
++	 * If we are sending updates to this ctld, it is holding
++	 * pcon_send_lock and is in slurm_persist_conn_open() -- either
++	 * still inside connect() (pcon_send->last_fd not yet published)
++	 * or already past it and sitting in poll() on the pcon_send
++	 * socket. The ctld has disconnected (that is why we are here)
++	 * so the socket will never get a reply. Wake the push by
++	 * shutting down the published fd. Clearing PERSIST_FLAG_RECONNECT
++	 * first prevents _slurm_persist_recv_msg() from reopening the
++	 * connection and re-wedging on a fresh fd. The push errors out
++	 * of slurm_persist_conn_open(), releases pcon_send_lock, and we
++	 * proceed with destroy.
++	 *
++	 * Reading pcon_send->last_fd lock-free is safe because it is a
++	 * scalar published by _open_persist_conn() and cleared to -1 by
++	 * _conn_destroy() before the conn struct is freed -- so unlike
++	 * dereferencing pcon_send->conn, this cannot land on a freed
++	 * TLS conn struct.
++	 *
++	 * Loop while we cannot acquire the lock: last_fd is only valid
++	 * once the socket has been created, so during connect() it may
++	 * be -1 for up to a TCP SYN timeout. Re-attempt the shutdown
++	 * each pass so we wake the push as soon as the fd is published.
++	 */
++	if (conn->conn_send)
++		conn->conn_send->flags &= ~PERSIST_FLAG_RECONNECT;
++	while (pthread_mutex_trylock(&conn->conn_send_lock) == EBUSY) {
++		if (conn->conn_send) {
++			int fd = conn->conn_send->last_fd;
++			if (fd > 0) {
++				debug("Terminating send to the slurmctld on cluster %s. It is restarting or shutting down.",
++				      conn->conn->cluster_name);
++				shutdown(fd, SHUT_RDWR);
++			}
++		}
++		if (tries++ >= 100) {
++			slurm_mutex_lock(&conn->conn_send_lock);
++			break;
++		}
++		usleep(10000); /* 10ms */
++	}
+ 
+-	slurm_mutex_lock(&conn->conn_send_lock);
+ 	slurm_persist_conn_destroy(conn->conn_send);
+ 	conn->conn_send = NULL;
+ 	slurm_mutex_unlock(&conn->conn_send_lock);
