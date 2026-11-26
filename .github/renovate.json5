@@ -52,6 +52,12 @@
   },
   packageRules: [
     {
+      // libnss-cache tags are `version/X.Y`; the shared Dockerfile annotation manager
+      // has no extractVersion key, so the tag prefix is stripped here.
+      matchDepNames: ["google/libnss-cache"],
+      extractVersion: "^version/(?<version>.+)$",
+    },
+    {
       // A Slurm release line is YY.MM, so both major and minor updates are moves to a
       // new line. Keep patch releases in their own PR, separate from line moves.
       matchDepNames: ["slurm"],

@@ -21,6 +21,7 @@ ARG S5CMD_VERSION=2.3.0-acb67716
 ARG LIBJSON_VERSION=5
 # pmix2 for Ubuntu 22.04
 ARG SLURM_PMIX_VERSION=pmix2
+# renovate: datasource=github-releases depName=google/libnss-cache versioning=loose
 ARG LIBNSSCACHE_VERSION=0.21
 ARG NSSCACHE_VERSION=v0.11.0
 # This is currently only used to find the `dist-packages` location for the `nsscache` installation
