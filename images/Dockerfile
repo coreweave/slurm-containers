@@ -37,6 +37,7 @@ ARG APT_CACHE_BUST=2026-10-26
 
 ## Controller Extras args
 ARG CONDA_VERSION=py313_26.9.4-0
+# renovate: datasource=github-releases depName=mamba-org/micromamba-releases versioning=regex:^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)-(?<build>\d+)$
 ARG MICROMAMBA_VERSION=2.3.2-0
 ARG NHC_VERSION=1.4.3
 
