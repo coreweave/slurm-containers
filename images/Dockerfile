@@ -10,6 +10,7 @@ ARG S6_OVERLAY_VERSION=3.2.3.0
 ARG PYXIS_VERSION=0.24.0
 # renovate: datasource=github-releases depName=NVIDIA/enroot
 ARG ENROOT_VERSION=4.2.1
+# renovate: datasource=github-releases depName=benmcollins/libjwt
 ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
 ARG S2N_VERSION=1.7.5
 ARG KUBECTL_VERSION=1.36.2
