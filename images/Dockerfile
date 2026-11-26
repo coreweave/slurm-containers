@@ -14,6 +14,7 @@ ARG ENROOT_VERSION=4.2.1
 ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
 # renovate: datasource=github-releases depName=aws/s2n-tls
 ARG S2N_VERSION=1.7.5
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
 ARG KUBECTL_VERSION=1.36.2
 ARG S5CMD_VERSION=2.3.0-acb67716
 # version 5 for Ubuntu 22.04
