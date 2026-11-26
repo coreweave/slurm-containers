@@ -4,6 +4,7 @@
 ARG PARENT_IMAGE=ubuntu:22.04
 # Slurm version can be release version (ex. 22.05.7) or full git commit sha
 ARG SLURM_VERSION=25.11.8
+# renovate: datasource=github-releases depName=just-containers/s6-overlay versioning=loose
 ARG S6_OVERLAY_VERSION=3.2.3.0
 ARG PYXIS_VERSION=0.24.0
 ARG ENROOT_VERSION=4.2.1

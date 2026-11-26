@@ -1,7 +1,8 @@
 {
   // Renovate config for slurm-containers. Tracks nccl-tests base images in the
   // build-images.yaml matrix, keeping each CUDA/OS row on the newest build in its stream,
-  // and the Slurm version built by images/Dockerfile on main and each release branch.
+  // the Slurm version built by images/Dockerfile on main and each release branch, and the
+  // Dockerfile ARGs annotated with `# renovate:` comments (shared coreweave preset manager).
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: [
     "github>coreweave/renovate-config",
@@ -15,7 +16,7 @@
   // release/vYY.MM the older ones). This config on main is used for all of them.
   baseBranchPatterns: ["main", "/^release\\/v/"],
   // Scope Renovate to only the nccl-tests custom manager. Dependabot owns
-  // github-actions and Dockerfile updates; disabling the other managers here
+  // github-actions and Dockerfile base image (FROM) updates; disabling the other managers here
   // avoids duplicate/competing PRs.
   enabledManagers: ["custom.regex"],
   customManagers: [
