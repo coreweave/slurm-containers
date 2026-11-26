@@ -6,6 +6,7 @@ ARG PARENT_IMAGE=ubuntu:22.04
 ARG SLURM_VERSION=25.11.8
 # renovate: datasource=github-releases depName=just-containers/s6-overlay versioning=loose
 ARG S6_OVERLAY_VERSION=3.2.3.0
+# renovate: datasource=github-releases depName=NVIDIA/pyxis
 ARG PYXIS_VERSION=0.24.0
 ARG ENROOT_VERSION=4.2.1
 ARG LIBJWT_VERSION=1.18.3 # TODO do we want to bump this higher? 3.2.2 is latest
